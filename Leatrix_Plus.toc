@@ -2,7 +2,7 @@
 ## Title: |cff33ffccLeatrix|r |cffffffffPlus|r
 ## Version: 0.1
 ## Notes: Quality of life addon for Wrath of the Lich King (3.3.5)
-## Author: ggb00, Leatrix
+## Author: ggb00, Sattva108, Leatrix
 ## SavedVariables: LeaPlusDB
 ## OptionalDeps: ElvUI
 
@@ -23,3 +23,5 @@ Leatrix_Plus.lua
 
 Modules\Automation.lua
 Modules\Chat.lua
+Modules\Frames.lua
+Modules\Minimap.lua
