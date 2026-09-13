@@ -1,11 +1,48 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:schemaLocation="http://www.blizzard.com/wow/ui/..\FrameXML\UI.xsd">
-    <ScrollFrame name="Leatrix_InputScrollFrameTemplate" virtual="true">
-        <KeyValues>
-            <KeyValue key="maxLetters" value="0" type="number"/>
 
-        </KeyValues>
+    <Script>
+        function InputScrollFrame_OnLoad(self)
+            local scrollBar = self.ScrollBar or _G[self:GetName().."ScrollBar"]
+            if scrollBar then
+                scrollBar:ClearAllPoints()
+                scrollBar:SetPoint("TOPLEFT", self, "TOPRIGHT", 6, -16)
+                scrollBar:SetPoint("BOTTOMLEFT", self, "BOTTOMRIGHT", 6, 16)
+                scrollBar:Hide()
+            end
+            if self.EditBox then
+                self.EditBox:SetWidth(self:GetWidth() - 18)
+            end
+        end
+
+        function InputScrollFrame_OnMouseDown(self)
+            if self.EditBox then
+                self.EditBox:SetFocus()
+            end
+        end
+
+        function InputScrollFrame_OnEscapePressed(self)
+            self:ClearFocus()
+        end
+
+        function InputScrollFrame_OnTabPressed(self)
+            self:ClearFocus()
+        end
+
+        function InputScrollFrame_OnTextChanged(self)
+            local parent = self:GetParent()
+            if parent and parent.UpdateScrollChildRect then
+                parent:UpdateScrollChildRect()
+            end
+        end
+
+        function InputScrollFrame_OnUpdate(self)
+            ScrollingEdit_OnUpdate(self)
+        end
+    </Script>
+
+    <ScrollFrame name="Leatrix_InputScrollFrameTemplate" virtual="true">
         <Frames>
             <Slider name="$parentScrollBar" inherits="UIPanelScrollBarTemplate" parentKey="ScrollBar" hidden="true">
                 <Anchors>
