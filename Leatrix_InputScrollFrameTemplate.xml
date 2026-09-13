@@ -1,10 +1,10 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:schemaLocation="http://www.blizzard.com/wow/ui/..\FrameXML\UI.xsd">
+    xsi:schemaLocation="http://www.blizzard.com/wow/ui/ ..\FrameXML\UI.xsd">
 
     <Script>
-        function InputScrollFrame_OnLoad(self)
-            local scrollBar = self.ScrollBar or _G[self:GetName().."ScrollBar"]
+        function Lea_InputScrollFrame_OnLoad(self)
+            local scrollBar = self.ScrollBar or _G[self:GetName() .. "ScrollBar"]
             if scrollBar then
                 scrollBar:ClearAllPoints()
                 scrollBar:SetPoint("TOPLEFT", self, "TOPRIGHT", 6, -16)
@@ -16,28 +16,28 @@
             end
         end
 
-        function InputScrollFrame_OnMouseDown(self)
+        function Lea_InputScrollFrame_OnMouseDown(self)
             if self.EditBox then
                 self.EditBox:SetFocus()
             end
         end
 
-        function InputScrollFrame_OnEscapePressed(self)
+        function Lea_InputScrollFrame_OnEscapePressed(self)
             self:ClearFocus()
         end
 
-        function InputScrollFrame_OnTabPressed(self)
+        function Lea_InputScrollFrame_OnTabPressed(self)
             self:ClearFocus()
         end
 
-        function InputScrollFrame_OnTextChanged(self)
+        function Lea_InputScrollFrame_OnTextChanged(self)
             local parent = self:GetParent()
             if parent and parent.UpdateScrollChildRect then
                 parent:UpdateScrollChildRect()
             end
         end
 
-        function InputScrollFrame_OnUpdate(self)
+        function Lea_InputScrollFrame_OnUpdate(self)
             ScrollingEdit_OnUpdate(self)
         end
     </Script>
@@ -61,10 +61,12 @@
                 </FontString>
             </Layer>
         </Layers>
+
         <Scripts>
-            <OnLoad function="InputScrollFrame_OnLoad"/>
-            <OnMouseDown function="InputScrollFrame_OnMouseDown"/>
+            <OnLoad function="Lea_InputScrollFrame_OnLoad"/>
+            <OnMouseDown function="Lea_InputScrollFrame_OnMouseDown"/>
         </Scripts>
+
         <ScrollChild>
             <EditBox parentKey="EditBox" multiLine="true" countInvisibleLetters="true" autoFocus="false">
                 <Size x="1" y="1"/>
@@ -73,8 +75,7 @@
                 </Anchors>
                 <Layers>
                     <Layer level="BORDER">
-                        <FontString parentKey="Instructions" inherits="GameFontNormalSmall" justifyH="LEFT"
-                                    justifyV="TOP">
+                        <FontString parentKey="Instructions" inherits="GameFontNormalSmall" justifyH="LEFT" justifyV="TOP">
                             <Anchors>
                                 <Anchor point="TOPLEFT" x="0" y="0"/>
                             </Anchors>
@@ -83,11 +84,11 @@
                     </Layer>
                 </Layers>
                 <Scripts>
-                    <OnTabPressed function="InputScrollFrame_OnTabPressed"/>
-                    <OnTextChanged function="InputScrollFrame_OnTextChanged"/>
+                    <OnTabPressed function="Lea_InputScrollFrame_OnTabPressed"/>
+                    <OnTextChanged function="Lea_InputScrollFrame_OnTextChanged"/>
                     <OnCursorChanged function="ScrollingEdit_OnCursorChanged"/>
-                    <OnUpdate function="InputScrollFrame_OnUpdate"/>
-                    <OnEscapePressed function="InputScrollFrame_OnEscapePressed"/>
+                    <OnUpdate function="Lea_InputScrollFrame_OnUpdate"/>
+                    <OnEscapePressed function="Lea_InputScrollFrame_OnEscapePressed"/>
                 </Scripts>
                 <FontString inherits="GameFontHighlightSmall"/>
             </EditBox>
