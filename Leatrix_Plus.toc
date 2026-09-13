@@ -16,7 +16,6 @@ libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
 
 Leatrix_Plus_Library.lua
 Leatrix_Plus_Locale.lua
-Leatrix_Plus_Media.lua
 Leatrix_Plus_Flight_Alliance.lua
 Leatrix_Plus_Flight_Horde.lua
 Leatrix_Plus.lua
@@ -25,3 +24,4 @@ Modules\Automation.lua
 Modules\Chat.lua
 Modules\Frames.lua
 Modules\Minimap.lua
+Modules\System.lua
