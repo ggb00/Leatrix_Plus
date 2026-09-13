@@ -1,47 +1,39 @@
-----------------------------------------------------------------------
--- 	Leatrix Plus 3.0.131 (10th May 2023)
-----------------------------------------------------------------------
-
---	01:Functns, 02:Locks, 03:Restart, 20:Live, 30:Isolated, 40:Player
---	50:RunOnce, 60:Evnts, 62:Profile, 70:Lgot, 80:Commands, 90:Panel
---
-----------------------------------------------------------------------
--- 	Leatrix Plus
-----------------------------------------------------------------------
-
+-- Leatrix_Plus.lua
 LibCompat = LibStub:GetLibrary("LibCompat-1.0")
--- Create global table
+
+-- Global & local saved variables table
 _G.LeaPlusDB = _G.LeaPlusDB or {}
-LeaPlusDB = _G.LeaPlusDB  -- локальный псевдоним
+LeaPlusDB = _G.LeaPlusDB
 LeaPlusDB["ListenedTracks"] = LeaPlusDB["ListenedTracks"] or {}
 
-
--- Create locals
-local LeaPlusLC, LeaPlusCB, LeaDropList, LeaConfigList, LeaLockList = {}, {}, {}, {}, {}
-local ClientVersion = GetBuildInfo()
-local GameLocale = GetLocale()
-local void
-
-
---===== Check for if 3.3.5 or 2.4.3 game client. =====--
-local isTBC = select(4, GetBuildInfo()) == 20400 -- true if TBC 2.4.3
-local isWOTLK = select(4, GetBuildInfo()) == 30300 -- true if WOTLK 3.3.5
-local isPastWOTLK = select(4, GetBuildInfo()) > 30300 -- true if more than 3.3.5 ala 4.3.4
-
--- Version
-LeaPlusLC["AddonVer"] = "3.3.5"
-
--- Get locale table
-local void, Leatrix_Plus = ...
+-- Retrieve addon namespace
+local _, Leatrix_Plus = ...
 local L = Leatrix_Plus.L
 
--- Check Wow version is valid
+-- Create locals & expose on addon namespace for external modules
+local LeaPlusLC, LeaPlusCB, LeaDropList, LeaConfigList, LeaLockList = {}, {}, {}, {}, {}
+local void
+
+Leatrix_Plus.LC = LeaPlusLC
+Leatrix_Plus.CB = LeaPlusCB
+Leatrix_Plus.DropList = LeaDropList
+Leatrix_Plus.ConfigList = LeaConfigList
+Leatrix_Plus.LockList = LeaLockList
+Leatrix_Plus.Modules = {}
+
+function Leatrix_Plus:RegisterModule(name, mod)
+    self.Modules[name] = mod
+end
+
+-- Version constant
+LeaPlusLC["AddonVer"] = "3.3.5"
+
+-- Check client version is 3.3.5 (TOC 30300)
 do
-    local gameversion, gamebuild, gamedate, gametocversion = GetBuildInfo()
-    if gametocversion and gametocversion < 30000 or gametocversion > 39999 then
-        -- Game client is not Wow Classic
+    local _, _, _, tocversion = GetBuildInfo()
+    if tocversion and (tocversion < 30000 or tocversion > 39999) then
         LibCompat.After(2, function()
-            print(L["LEATRIX PLUS: WRONG VERSION INSTALLED!"])
+            DEFAULT_CHAT_FRAME:AddMessage("|cff33ffccLeatrix Plus|r: Wrong WoW client version detected!", 1, 0.2, 0.2)
         end)
         return
     end
@@ -153,30 +145,25 @@ function LeaPlusLC:ShowSystemEditBox(word, focuschat)
         eFrame.t:SetTexture(0.05, 0.05, 0.05, 0.9)
         -- Add copy title
         eFrame.f = eFrame:CreateFontString(nil, 'ARTWORK', 'GameFontNormalLarge')
-        eFrame.f:SetPoint("TOPLEFT", x, y)
         eFrame.f:SetPoint("TOPLEFT", eFrame, "TOPLEFT", 12, -52)
         eFrame.f:SetWidth(676)
         eFrame.f:SetJustifyH("LEFT")
         eFrame.f:SetWordWrap(false)
         -- Add copy label
         eFrame.c = eFrame:CreateFontString(nil, 'ARTWORK', 'GameFontNormalLarge')
-        eFrame.c:SetPoint("TOPLEFT", x, y)
         eFrame.c:SetText(L["Press CTRL/C to copy"])
         eFrame.c:SetPoint("TOPLEFT", eFrame, "TOPLEFT", 12, -82)
         -- Add feedback label
-        eFrame.x = eFrame:CreateFontString(nil, 'ARTWORK', 'GameFontNormalLarge')
-        eFrame.x:SetPoint("TOPRIGHT", x, y)
-        eFrame.x:SetText("|cff00ff00Feedback Discord:|r |cffadd8e6sattva108|r")
-
-        eFrame.x:SetPoint("TOPRIGHT", eFrame, "TOPRIGHT", -12, -52)
+        local feedback = eFrame:CreateFontString(nil, 'ARTWORK', 'GameFontNormalLarge')
+        feedback:SetText("|cff00ff00Feedback Discord:|r |cffadd8e6sattva108|r")
+        feedback:SetPoint("TOPRIGHT", eFrame, "TOPRIGHT", -12, -52)
         hooksecurefunc(eFrame.f, "SetText", function()
-            eFrame.f:SetWidth(676 - eFrame.x:GetStringWidth() - 26)
+            eFrame.f:SetWidth(676 - feedback:GetStringWidth() - 26)
         end)
         -- Add cancel label
-        eFrame.x = eFrame:CreateFontString(nil, 'ARTWORK', 'GameFontNormalLarge')
-        eFrame.x:SetPoint("TOPRIGHT", x, y)
-        eFrame.x:SetText(L["Right-click to close"])
-        eFrame.x:SetPoint("TOPRIGHT", eFrame, "TOPRIGHT", -12, -82)
+        local cancelLabel = eFrame:CreateFontString(nil, 'ARTWORK', 'GameFontNormalLarge')
+        cancelLabel:SetText(L["Right-click to close"])
+        cancelLabel:SetPoint("TOPRIGHT", eFrame, "TOPRIGHT", -12, -82)
         -- Create editbox
         eFrame.b = CreateFrame("EditBox", "LeatrixSystemEditBox", eFrame, "InputBoxTemplate")
         eFrame.b:ClearAllPoints()
@@ -1327,12 +1314,11 @@ function LeaPlusLC:Isolated()
 
     if LeaPlusLC["FasterMovieSkip"] == "On" then
 
-        CinematicFrame:HookScript("OnShow", function(self, ...)
+        CinematicFrame:HookScript("OnShow", function(self)
             if not isPastWOTLK then
-                HideUIPanel(self);
-                GameMovieFinished()
+                HideUIPanel(self)
                 LibCompat.After(0.01, function()
-                    StopCinematic();
+                    StopCinematic()
                 end)
             end
         end)
@@ -1787,579 +1773,6 @@ function LeaPlusLC:Isolated()
     end
 
     ----------------------------------------------------------------------
-    --	Faster looting
-    ----------------------------------------------------------------------
-
-    if LeaPlusLC["FasterLooting"] == "On" then
-
-        --===== WA Custom Options - Sound database  =====--
-        local soundFiles = {
-            [1] = "Sound/Interface/Pickup/putDownRocks_Ore01.wav",
-            [2] = "sound/character/gnome/gnomemaleerrormessages/gnomemale_err_inventoryfull01.wav",
-            [3] = "sound/character/dwarf/dwarfmaleerrormessages/dwarfmale_err_inventoryfull02.wav",
-            -- Add more sound file paths if needed
-        }
-
-        -- Create configuration panel
-        --local weatherSliderTable = {L["Very Low"], L["Low"], L["Medium"], L["High"]}
-        --LeaPlusCB["WeatherLevel"].f:SetText(LeaPlusLC["WeatherLevel"] .. "  (" .. weatherSliderTable[LeaPlusLC["WeatherLevel"] + 1] .. ")")
-        local FasterLootPanel = LeaPlusLC:CreatePanel("Faster Looting", "FasterLootPanel")
-
-        LeaPlusLC:MakeTx(FasterLootPanel, "Settings", 16, -72)
-        LeaPlusLC:MakeCB(FasterLootPanel, "SmallerErrorFrame", "Smaller Error Frame", 16, -92, false, "If checked, your red error text frame, will be only one line long.")
-        LeaPlusLC:MakeCB(FasterLootPanel, "FasterErrorFrame", "Faster Error Frame", 16, -112, false, "If checked, your red error text frame, will be faster to fade|n(1 second instead of 5).")
-
-        LeaPlusLC:MakeTx(FasterLootPanel, "Full Inventory Sound", 356, -72)
-        LeaPlusLC:MakeSL(FasterLootPanel, "FullInvSound", "Drag to set the desired sound played when your inventory is Full. Set 0 to disable sound.", 0, 3, 1, 356, -92, "%.0f")
-
-        local FullInvSoundSliderTable = { "Disabled", "Default", "Gnome", "Dwarf" }
-        local function SetFullInvSliderText()
-            -- set text next to the number of sound from FullInvSoundSliderTable
-            LeaPlusCB["FullInvSound"].f:SetText(LeaPlusLC["FullInvSound"] .. "  (" .. FullInvSoundSliderTable[LeaPlusLC["FullInvSound"] + 1] .. ")")
-            local soundPath = soundFiles[LeaPlusLC["FullInvSound"]]
-            if soundPath then
-                PlaySoundFile(soundPath, "Sound")
-            end
-        end
-
-        --===== Function to make error frame contain only 1 line =====--
-        --===== It also checks if frame is not already 1 line, to make sure error frame doesnt get hidden fully. =====--
-        local function SetErrorFrameHeight()
-            local errorFrameHeight = 20
-            if LeaPlusLC["SmallerErrorFrame"] == "On" then
-
-                if UIErrorsFrame:GetHeight() ~= errorFrameHeight then
-
-                    UIErrorsFrame:SetHeight(errorFrameHeight)
-
-                end
-            else
-                UIErrorsFrame:SetHeight(60)
-            end
-        end
-        SetErrorFrameHeight()
-
-        local function SetErroFrameFadeTime()
-            if LeaPlusLC["FasterErrorFrame"] == "On" then
-                UIErrorsFrame:SetTimeVisible(1)
-            else
-                UIErrorsFrame:SetTimeVisible(5)
-            end
-        end
-        SetErroFrameFadeTime()
-
-        LeaPlusCB["FullInvSound"]:HookScript("OnValueChanged", SetFullInvSliderText)
-        LeaPlusCB["SmallerErrorFrame"]:HookScript("OnClick", SetErrorFrameHeight)
-        LeaPlusCB["FasterErrorFrame"]:HookScript("OnClick", SetErroFrameFadeTime)
-
-
-
-        -- Help button hidden
-        FasterLootPanel.h:Hide()
-
-        -- Back button handler
-        FasterLootPanel.b:SetScript("OnClick", function()
-            FasterLootPanel:Hide();
-            LeaPlusLC["PageF"]:Show();
-            LeaPlusLC["Page7"]:Show();
-            return
-        end)
-
-        -- Reset button handler
-        FasterLootPanel.r:SetScript("OnClick", function()
-
-            -- Reset checkboxes
-            LeaPlusLC["SmallerErrorFrame"] = "Off"
-            LeaPlusLC["FasterErrorFrame"] = "Off"
-            LeaPlusLC["FullInvSound"] = 1
-            UIErrorsFrame:SetHeight(60)
-            UIErrorsFrame:SetTimeVisible(5)
-            -- Refresh panel
-            FasterLootPanel:Hide();
-            FasterLootPanel:Show()
-
-        end)
-
-        -- Show panal when options panel button is clicked
-        LeaPlusCB["ModFasterLootingBtn"]:SetScript("OnClick", function()
-            if IsShiftKeyDown() and IsControlKeyDown() then
-                -- Preset profile
-                LeaPlusLC["SmallerErrorFrame"] = "On"
-                LeaPlusLC["FasterErrorFrame"] = "On"
-                LeaPlusLC["FullInvSound"] = 1
-                UIErrorsFrame:SetHeight(20)
-                UIErrorsFrame:SetTimeVisible(1)
-            else
-                FasterLootPanel:Show()
-                LeaPlusLC:HideFrames()
-            end
-        end)
-
-        --------------------------------------------------------------------------------
-        -- Code taken, and modified by Sattva.
-        -- Source code is from SpeedyAutoLoot addon.
-        -- Increase speed of looting singnificantly. Makes the feel of it better.
-        -- The main approach is to not load the looting window, when is not needed.
-        -- It was initially made for my WeakAura https://wago.io/uGLs2fARD
-        --------------------------------------------------------------------------------
-
-
-        local AutoLoot = CreateFrame("Frame")
-        -- local aura_env = aura_env or {}
-
-        local SetCVar = SetCVar
-        local BACKPACK_CONTAINER, LOOT_SLOT_ITEM, NUM_BAG_SLOTS = BACKPACK_CONTAINER, LOOT_SLOT_ITEM, NUM_BAG_SLOTS
-        local GetContainerNumFreeSlots = GetContainerNumFreeSlots
-        local GetCursorPosition = GetCursorPosition
-        local GetItemCount = GetItemCount
-        local GetItemInfo = GetItemInfo
-        local GetLootSlotInfo = GetLootSlotInfo
-        local GetLootSlotLink = GetLootSlotLink
-        local GetNumLootItems = GetNumLootItems
-        local IsModifiedClick = IsModifiedClick
-        local LootSlot = LootSlot
-        local band = bit.band
-        local select = select
-        local tContains = tContains
-        _G.ElvLootFrame = ElvLootFrame
-        _G.ElvLootFrameHolder = ElvLootFrameHolder
-        local slotType = slotType
-        local invFullSoundPlayed = false
-
-        --===== Check for if 3.3.5 or 2.4.3 game client. =====--
-        local isTBC = select(4, GetBuildInfo()) == 20400 -- true if TBC 2.4.3
-        local isWOTLK = select(4, GetBuildInfo()) == 30300 -- true if WOTLK 3.3.5
-
-
-        -----------------------------------------------------------------
-        -- Function checks for if player has free bag slots,
-        -- If not then checks if looted item can fit in existing stacks.
-        -----------------------------------------------------------------
-
-        function AutoLoot:ProcessLoot(item, q)
-
-            local total, free, bagFamily = 0
-            local itemFamily = GetItemFamily(item)
-
-            for i = BACKPACK_CONTAINER, NUM_BAG_SLOTS do
-
-                free, bagFamily = GetContainerNumFreeSlots(i)
-
-                if (not bagFamily or bagFamily == 0) or (itemFamily and band(itemFamily, bagFamily) > 0) then
-
-                    total = total + free
-
-                end
-
-            end
-
-            if total > 0 then
-
-                return true
-
-            end
-
-            local have = (GetItemCount(item) or 0)
-            if have > 0 then
-
-                local itemStackCount = (select(8, GetItemInfo(item)) or 0)
-                if itemStackCount > 1 then
-
-                    while have > itemStackCount do
-
-                        have = have - itemStackCount
-
-                    end
-
-                    local remain = itemStackCount - have
-                    if remain >= q then
-
-                        return true
-
-                    end
-
-                end
-
-            end
-
-            return false
-
-        end
-
-        --------------------------------------------------------------------------------
-        -- Function checks and helps to handle (show, hide) ElvUI looting frame.
-        -- It also helps to handle default looting frame.
-        --------------------------------------------------------------------------------
-
-
-        function AutoLoot:ShowLootFrame(show)
-            -- print("ShowLootFrame: Show: " .. tostring(show))
-
-            if IsAddOnLoaded("ElvUI") then
-                -- print("ShowLootFrame: ElvUI loaded")
-                if show then
-                    -- print("ShowLootFrame: Show ElvLootFrame")
-                    ElvLootFrame:SetParent(ElvLootFrameHolder)
-                    ElvLootFrame:SetFrameStrata("HIGH")
-                    self:LootUnderMouse(ElvLootFrame, ElvLootFrameHolder, 20)
-                    self.isHidden = false
-                else
-                    -- print("ShowLootFrame: Hide ElvLootFrame")
-                    ElvLootFrame:SetParent(self)
-                    self.isHidden = true
-                end
-            elseif LootFrame:IsEventRegistered("LOOT_SLOT_CLEARED") then
-                -- print("ShowLootFrame: Default UI loot frame")
-                LootFrame.page = 1;
-                if show then
-                    if isWOTLK then
-                        LootFrame_Show(LootFrame)
-                    elseif isTBC then
-                        ShowUIPanel(LootFrame)
-                    end
-                    self.isHidden = false
-                else
-                    -- HideUIPanel(LootFrame)
-                    self.isHidden = true
-                end
-            else
-                -- print("ShowLootFrame: No valid loot frames")
-                self.isHidden = true
-            end
-            -- print("ShowLootFrame: Done")
-        end
-
-
-
-
-        ----------------------------------------------------------------------------------------------------
-        -- Function to automate looting items, before looting it checks for if item is being master looted.
-        ----------------------------------------------------------------------------------------------------
-
-
-
-        function AutoLoot:LootItems(numItems)
-
-            local lootThreshold = (self.isClassic and select(2, GetLootMethod()) == 0) and GetLootThreshold() or 10
-            for i = numItems, 1, -1 do
-
-                local itemLink = GetLootSlotLink(i)
-                local _, _, lootQuantity, rarity, locked = GetLootSlotInfo(i)
-                -- print("itemLink: ", itemLink, "quantity: ", lootQuantity, "quality: ", rarity, "locked: ", locked)
-
-                if locked or (rarity and rarity >= lootThreshold) then
-
-                    -- print("item is locked")
-                    self.isItemLocked = true
-
-                else
-
-                    --===== FIX ME =====--
-                    --===== not sure why there is slotType ~= LOOT_SLOT_ITEM, its not defined =====--
-                    if slotType ~= LOOT_SLOT_ITEM or self:ProcessLoot(itemLink, lootQuantity) then
-                        -- print("It's working!")
-
-                        numItems = numItems - 1
-                        LootSlot(i)
-
-                    end
-                end
-            end
-
-            if numItems > 0 then
-
-                self:ShowLootFrame(true)
-
-            end
-
-        end
-
-
-        --------------------------------------------------------------------------------
-        -- Function to filter error messages
-        --------------------------------------------------------------------------------
-
-
-        -- if aura_env.config["error_filter"] then
-
-        --local AutoLootErrScript = UIErrorsFrame:GetScript('OnEvent')
-        --
-        ---- Error message events
-        --UIErrorsFrame:SetScript('OnEvent', function (self, event, AutoLootError, ...)
-        --
-        --	-- Handle error messages
-        --	if event == "UI_ERROR_MESSAGE" then
-        --
-        --		-- if aura_env.config["error_filter"] then
-        --
-        --		if  AutoLootError == ERR_LOOT_GONE or
-        --				AutoLootError == ERR_LOOT_DIDNT_KILL or
-        --				AutoLootError == ERR_NO_LOOT then
-        --
-        --			return -- hide the error message
-        --
-        --		end
-        --
-        --		-- else
-        --
-        --		--     return -- hide the error message
-        --
-        --		-- end
-        --	end
-        --
-        --	return AutoLootErrScript(self, event, AutoLootError, ...)
-        --
-        --end)
-
-        -- end
-
-
-        -------------------------------------------------------------------------------------
-        -- Function to handle all events related to looting.
-        -- Such as opening/closing loot windows and checking for inventory space.
-        --------------------------------------------------------------------------------
-
-
-
-        function AutoLoot:OnEvent(e, ...)
-
-            --===== Loot functions are called here =====--
-            if (e == "LOOT_READY" or e == "LOOT_OPENED") and not self.isLooting then
-
-                local numItems = GetNumLootItems()
-
-
-                --===== if nothing to loot, stop script =====--
-                if numItems == 0 then
-
-                    return
-
-                end
-
-                self.isLooting = true
-                self.isHidden = true
-
-
-                --===== Checks for if modifier is held and stops looting if given errors are fired, to avoid looping when it's not needed  =====--
-                if not IsModifiedClick("AUTOLOOTTOGGLE") and not tContains(({ ERR_INV_FULL, ERR_ITEM_MAX_COUNT, ERR_LOOT_ROLL_PENDING }), select(1, ...)) then
-
-                    self:LootItems(numItems)
-                    -- print("loot")
-
-                else
-
-                    self:ShowLootFrame(true)
-                    -- print("show")
-
-                end
-
-            elseif e == "LOOT_CLOSED" then
-
-                self.isLooting = false
-                self.isHidden = false
-                self.isItemLocked = false
-                self:ShowLootFrame(false)
-                invFullSoundPlayed = false
-
-
-                --===== If inventory is full or you have too many of items, show loot frame and play sound. =====--
-            elseif tContains(({ ERR_INV_FULL, ERR_ITEM_MAX_COUNT }), select(1, ...)) then
-                if not invFullSoundPlayed and self.isLooting then
-
-                    AutoLoot:OnInvFull()
-                    invFullSoundPlayed = true
-
-                end
-
-                --===== If item being rolled for (Group Loot), show loot frame. =====--
-            elseif tContains(({ ERR_LOOT_ROLL_PENDING }), select(1, ...)) then
-
-                if self.isLooting then
-
-                    self:ShowLootFrame(true)
-                    -- print("pickup")
-
-                end
-
-
-            elseif e == "LOOT_BIND_CONFIRM" then
-
-                if self.isLooting and self.isHidden then
-
-                    AutoLoot:OnBindConfirm()
-
-                end
-
-            elseif e == "OPEN_MASTER_LOOT_LIST" then
-
-                if self.isLooting and self.isHidden then
-
-                    self:ShowLootFrame(true);
-                    -- print("master loot")
-
-                end
-
-                -- elseif e == "PLAYER_LOGIN" or e == "ADDON_LOADED" and aura_env.config["autoLootGlobalEnabled"] then
-            elseif e == "PLAYER_LOGIN" or e == "ADDON_LOADED" then
-
-                if isTBC then
-
-                    SetCVar("autoLootCorpse", 1)
-
-                elseif isWOTLK then
-
-                    SetCVar("autoLootDefault", 1)
-
-                end
-
-
-                --===== Disable Auto Loot button in Interface menu and add tooltip to it. =====--
-                -- if aura_env.config["autoLootGlobalEnabled"] then
-
-                if InterfaceOptionsControlsPanelAutoLootCorpse then
-                    InterfaceOptionsControlsPanelAutoLootCorpse:Disable()
-
-                    local autoLootText = InterfaceOptionsControlsPanelAutoLootCorpseText
-                    autoLootText:SetText("Auto Loot option is controlled by Leatrix Plus.")
-                    autoLootText:SetAlpha(0.6)
-                end
-
-                -- print("Auto Loot Set")
-
-                -- else
-
-                --     InterfaceOptionsControlsPanelAutoLootCorpse:Enable()
-
-                -- end
-
-
-            end
-
-        end
-
-
-        --------------------------------------------------------------------------------
-        -- Inventory Full Function
-        --------------------------------------------------------------------------------
-
-
-        function AutoLoot:OnInvFull()
-
-            local soundIndex = LeaPlusLC["FullInvSound"]
-
-            local soundPath = soundFiles[soundIndex]
-            if soundPath then
-                PlaySoundFile(soundPath, "Sound")
-            end
-
-            self:ShowLootFrame(true)
-            -- print("inv full")
-
-        end
-
-
-        --------------------------------------------------------------------------------
-        -- Bind confirm Function
-        --------------------------------------------------------------------------------
-
-        function AutoLoot:OnBindConfirm(slot)
-
-            if self.isLooting then
-
-                self:ShowLootFrame(true);
-                -- print("bind confirm")
-
-            end
-
-        end
-
-
-        --------------------------------------------------------------------------------
-        -- Function to make sure the Looting Window is positioned well, when shown.
-        --------------------------------------------------------------------------------
-
-
-
-        function AutoLoot:LootUnderMouse(frame, parent, yoffset)
-            if (GetCVar("lootUnderMouse") == "1") then
-                local x, y = GetCursorPosition()
-                x = x / frame:GetEffectiveScale()
-                y = y / frame:GetEffectiveScale()
-
-                frame:ClearAllPoints()
-                frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", x - 40, y + (yoffset or 20))
-                frame:GetCenter()
-                frame:Raise()
-
-                -- print("Loot under mouse enabled. Positioning frame under cursor.")
-
-            else
-                frame:ClearAllPoints()
-                frame:SetPoint("TOPLEFT", parent, "TOPLEFT")
-
-                -- print("Loot under mouse disabled. Positioning frame at top-left of parent.")
-            end
-        end
-
-
-
-        --------------------------------------------------------------------------------
-        -- Function to setup events.
-        --------------------------------------------------------------------------------
-
-
-        function AutoLoot:OnLoad()
-
-            -- if (aura_env.config["errorFaster"] or aura_env.config["error_tiny"])  then
-
-            --===== Function to make error frame fade out animation faster. =====--
-            -- if aura_env.config["errorFaster"] then
-
-            --UIErrorsFrame:SetTimeVisible(1)
-
-            -- end
-
-
-
-
-            self:SetToplevel(true)
-            self:Hide()
-
-            --===== Function sets the OnEvent script for the AutoLoot frame to call the self:OnEvent(...) function. =====--
-            --===== Whenever an event is detected by the addon. =====--
-            self:SetScript("OnEvent", function(_, ...)
-
-                self:OnEvent(...)
-
-            end)
-
-            for _, e in next, ({ "ADDON_LOADED", "PLAYER_LOGIN", "LOOT_READY", "LOOT_OPENED", "LOOT_CLOSED", "UI_ERROR_MESSAGE", "CVAR_UPDATE", "LOOT_BIND_CONFIRM", "OPEN_MASTER_LOOT_LIST" }) do
-
-                self:RegisterEvent(e)
-
-            end
-
-
-            -- I did not change this for 2.4.3 and 3.3.5, it's working, so i let it be "Classic" :D
-            self.isClassic = (WOW_PROJECT_ID == WOW_PROJECT_CLASSIC)
-
-            if self.isClassic then
-
-                -- print("classic")
-                self:RegisterEvent("LOOT_BIND_CONFIRM")
-                self:RegisterEvent("OPEN_MASTER_LOOT_LIST")
-
-            end
-
-            LootFrame:UnregisterEvent('LOOT_OPENED')
-
-        end
-
-        AutoLoot:OnLoad()
-
-    end
-
-    ----------------------------------------------------------------------
     --	Disable bag automation
     ----------------------------------------------------------------------
 
@@ -2407,225 +1820,6 @@ function LeaPlusLC:Isolated()
     end
 
     ----------------------------------------------------------------------
-    --	Automate quests (no reload required)
-    ----------------------------------------------------------------------
-
-    do
-
-        local addon = CreateFrame('Frame')
-
-        addon.completedQuests = {}
-        addon.uncompletedQuests = {}
-
-        function addon:OnEvent(event, ...)
-            if self[event] then
-                self[event](self, ...)
-            end
-        end
-
-        addon:SetScript('OnEvent', addon.OnEvent)
-
-        -- Function to setup events
-        local function SetupEvents()
-            if LeaPlusLC["AutomateQuests"] == "On" then
-                addon:RegisterEvent('GOSSIP_SHOW')
-                addon:RegisterEvent('QUEST_COMPLETE')
-                addon:RegisterEvent('QUEST_DETAIL')
-                addon:RegisterEvent('QUEST_FINISHED')
-                addon:RegisterEvent('QUEST_GREETING')
-                addon:RegisterEvent('QUEST_LOG_UPDATE')
-                addon:RegisterEvent('QUEST_PROGRESS')
-            else
-                addon:UnregisterAllEvents()
-            end
-        end
-
-        -- Create configuration panel
-        local QuestPanel = LeaPlusLC:CreatePanel("Automate quests", "QuestPanel")
-
-        LeaPlusLC:MakeTx(QuestPanel, "Settings", 16, -72)
-        LeaPlusLC:MakeCB(QuestPanel, "AutoQuestAvailable", "Accept available quests automatically", 16, -92, false, "If checked, available quests will be accepted automatically.")
-        LeaPlusLC:MakeCB(QuestPanel, "AutoQuestCompleted", "Turn-in completed quests automatically", 16, -112, false, "If checked, completed quests will be turned-in automatically.")
-        LeaPlusLC:MakeCB(QuestPanel, "AutoQuestShift", "Require override key for quest automation", 16, -132, false, "If checked, you will need to hold the override key down for quests to be automated.|n|nIf unchecked, holding the override key will prevent quests from being automated.")
-
-        LeaPlusLC:CreateDropDown("AutoQuestKeyMenu", "Override key", QuestPanel, 146, "TOPLEFT", 356, -115, { L["SHIFT"], L["ALT"], L["CONTROL"] }, "")
-
-        -- Setup events when option is clicked and on startup (if option is enabled)
-        LeaPlusCB["AutomateQuests"]:HookScript("OnClick", SetupEvents)
-        if LeaPlusLC["AutomateQuests"] == "On" then
-            SetupEvents()
-        end
-
-        -- Help button hidden
-        QuestPanel.h:Hide()
-
-        -- Back button handler
-        QuestPanel.b:SetScript("OnClick", function()
-            QuestPanel:Hide();
-            LeaPlusLC["PageF"]:Show();
-            LeaPlusLC["Page1"]:Show();
-            SetupEvents()
-            return
-        end)
-
-        -- Reset button handler
-        QuestPanel.r:SetScript("OnClick", function()
-
-            -- Reset checkboxes
-            LeaPlusLC["AutoQuestShift"] = "Off"
-            LeaPlusLC["AutoQuestAvailable"] = "On"
-            LeaPlusLC["AutoQuestCompleted"] = "On"
-            LeaPlusLC["AutoQuestKeyMenu"] = 1
-
-            -- Refresh panel
-            QuestPanel:Hide();
-            QuestPanel:Show()
-            SetupEvents()
-        end)
-
-        -- Show panal when options panel button is clicked
-        LeaPlusCB["AutomateQuestsBtn"]:SetScript("OnClick", function()
-            if IsShiftKeyDown() and IsControlKeyDown() then
-                -- Preset profile
-                LeaPlusLC["AutoQuestShift"] = "Off"
-                LeaPlusLC["AutoQuestAvailable"] = "On"
-                LeaPlusLC["AutoQuestCompleted"] = "On"
-                LeaPlusLC["AutoQuestKeyMenu"] = 1
-            else
-                QuestPanel:Show()
-                LeaPlusLC:HideFrames()
-            end
-            SetupEvents()
-        end)
-
-        --===== Config Panel Setup END =====--
-
-        -- Function to determine if override key is being held (from 2nd code)
-        local function IsOverrideKeyDown()
-            if LeaPlusLC["AutoQuestKeyMenu"] == 1 and IsShiftKeyDown()
-                    or LeaPlusLC["AutoQuestKeyMenu"] == 2 and IsAltKeyDown()
-                    or LeaPlusLC["AutoQuestKeyMenu"] == 3 and IsControlKeyDown()
-            then
-                return true
-            end
-        end
-
-        function addon:canAutomate()
-            if LeaPlusLC["AutoQuestCompleted"] == "Off" or (LeaPlusLC["AutoQuestShift"] == "On" and not IsOverrideKeyDown()) or (LeaPlusLC["AutoQuestShift"] == "Off" and IsOverrideKeyDown()) then
-                return false
-            else
-                return true
-            end
-        end
-
-        function addon:strip_text(text)
-            if not text then
-                return
-            end
-            text = text:gsub('|c%x%x%x%x%x%x%x%x(.-)|r', '%1')
-            text = text:gsub('%[.*%]%s*', '')
-            text = text:gsub('(.+) %(.+%)', '%1')
-            text = text:trim()
-            return text
-        end
-
-        function addon:QUEST_PROGRESS()
-            if not self:canAutomate() then
-                return
-            end
-            if IsQuestCompletable() then
-                CompleteQuest()
-            end
-        end
-
-        function addon:QUEST_LOG_UPDATE()
-            if not self:canAutomate() then
-                return
-            end
-            local start_entry = GetQuestLogSelection()
-            local num_entries = GetNumQuestLogEntries()
-            local title, is_complete, no_objectives
-
-            self.completedQuests = {}
-            self.uncompletedQuests = {}
-
-            if num_entries > 0 then
-                for i = 1, num_entries do
-                    SelectQuestLogEntry(i)
-                    title, _, _, _, _, _, is_complete = GetQuestLogTitle(i)
-                    no_objectives = GetNumQuestLeaderBoards(i) == 0
-                    if title and (is_complete or no_objectives) then
-                        self.completedQuests[title] = true
-                    else
-                        self.uncompletedQuests[title] = true
-                    end
-                end
-            end
-            SelectQuestLogEntry(start_entry)
-        end
-
-        function addon:GOSSIP_SHOW()
-            if not self:canAutomate() then
-                return
-            end
-
-            local button, text
-            for i = 1, 32 do
-                button = _G['GossipTitleButton' .. i]
-                if button:IsVisible() then
-                    text = self:strip_text(button:GetText())
-                    if button.type == 'Available' and LeaPlusLC["AutoQuestAvailable"] == "On" then
-                        button:Click()
-                    elseif button.type == 'Active' and LeaPlusLC["AutoQuestCompleted"] == "On" and self.completedQuests[text] then
-                        button:Click()
-                    end
-                end
-            end
-        end
-
-        function addon:QUEST_GREETING(...)
-            if not self:canAutomate() then
-                return
-            end
-
-            local button, text
-            for i = 1, 32 do
-                button = _G['QuestTitleButton' .. i]
-                if button:IsVisible() then
-                    text = self:strip_text(button:GetText())
-                    if LeaPlusLC["AutoQuestCompleted"] == "On" and self.completedQuests[text] then
-                        button:Click()
-                    elseif LeaPlusLC["AutoQuestAvailable"] == "On" and not self.uncompletedQuests[text] then
-                        button:Click()
-                    end
-                end
-            end
-        end
-
-        function addon:QUEST_DETAIL()
-            if not self:canAutomate() then
-                return
-            end
-            if LeaPlusLC["AutoQuestAvailable"] == "On" then
-                AcceptQuest()
-            end
-        end
-
-        function addon:QUEST_COMPLETE(event)
-            if not self:canAutomate() then
-                return
-            end
-            if LeaPlusLC["AutoQuestCompleted"] == "On" and GetNumQuestChoices() <= 1 then
-                GetQuestReward(QuestFrameRewardPanel.itemChoice)
-            end
-        end
-
-        _G.Leatrix_Plus = addon
-
-
-    end
-
-    ----------------------------------------------------------------------
     --	Sort game options addon list - not present in 3.3.5
     ----------------------------------------------------------------------
 
@@ -2636,549 +1830,6 @@ function LeaPlusLC:Isolated()
     --		AddonCharacterDropDownText:SetText(UnitName("player"))
     --	end
     --end
-
-    ----------------------------------------------------------------------
-    --	Sell junk automatically (no reload required)
-    -- 	Not 2.4.3 compatible - kek
-    ----------------------------------------------------------------------
-
-    do
-
-        -- Create sell junk banner
-        local StartMsg = CreateFrame("FRAME", nil, MerchantFrame)
-        StartMsg:ClearAllPoints()
-        StartMsg:SetPoint("BOTTOMLEFT", 4, 4)
-        StartMsg:SetSize(160, 22)
-        StartMsg:SetToplevel(true)
-        StartMsg:Hide()
-
-        StartMsg.s = StartMsg:CreateTexture(nil, "BACKGROUND")
-        StartMsg.s:SetAllPoints()
-        StartMsg.s:SetVertexColor(0.1, 0.1, 0.1, 1.0)
-
-        StartMsg.f = StartMsg:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
-        StartMsg.f:SetAllPoints();
-        StartMsg.f:SetText(L["SELLING JUNK"])
-
-        -- Declarations
-        local IterationCount, totalPrice = 500, 0
-        local SellJunkTicker
-
-        -- Create custom NewTicker function (from Wrath)
-        local function LeaPlusNewTicker(duration, callback, iterations)
-            local ticker = setmetatable({}, TickerMetatable)
-            ticker._remainingIterations = iterations
-            ticker._callback = function()
-                if (not ticker._cancelled) then
-                    callback(ticker)
-                    --Make sure we weren't cancelled during the callback
-                    if (not ticker._cancelled) then
-                        if (ticker._remainingIterations) then
-                            ticker._remainingIterations = ticker._remainingIterations - 1
-                        end
-                        if (not ticker._remainingIterations or ticker._remainingIterations > 0) then
-                            LibCompat.After(duration, ticker._callback)
-                        end
-                    end
-                end
-            end
-            LibCompat.After(duration, ticker._callback)
-            return ticker
-        end
-
-
-
-        -- Create configuration panel
-        local SellJunkFrame = LeaPlusLC:CreatePanel("Sell junk automatically", "SellJunkFrame")
-        LeaPlusLC:MakeTx(SellJunkFrame, "Settings", 16, -72)
-        LeaPlusLC:MakeCB(SellJunkFrame, "AutoSellShowSummary", "Show vendor summary in chat", 16, -92, false, "If checked, a vendor summary will be shown in chat when junk is automatically sold.")
-
-        -- Help button hidden
-        SellJunkFrame.h:Hide()
-
-        -- Back button handler
-        SellJunkFrame.b:SetScript("OnClick", function()
-            SellJunkFrame:Hide();
-            LeaPlusLC["PageF"]:Show();
-            LeaPlusLC["Page1"]:Show();
-            return
-        end)
-
-        -- Reset button handler
-        SellJunkFrame.r.tiptext = SellJunkFrame.r.tiptext .. "|n|n" .. L["Note that this will not reset your exclusions list."]
-        SellJunkFrame.r:SetScript("OnClick", function()
-
-            -- Reset checkboxes
-            LeaPlusLC["AutoSellShowSummary"] = "On"
-
-            -- Refresh panel
-            SellJunkFrame:Hide();
-            SellJunkFrame:Show()
-
-        end)
-
-        -- Show panal when options panel button is clicked
-        LeaPlusCB["AutoSellJunkBtn"]:SetScript("OnClick", function()
-            if IsShiftKeyDown() and IsControlKeyDown() then
-                -- Preset profile
-                LeaPlusLC["AutoSellShowSummary"] = "On"
-            else
-                SellJunkFrame:Show()
-                LeaPlusLC:HideFrames()
-            end
-        end)
-
-        -- Function to stop selling
-        local function StopSelling()
-            if SellJunkTicker then
-                SellJunkTicker._cancelled = true;
-            end
-            StartMsg:Hide()
-            SellJunkFrame:UnregisterEvent("ITEM_LOCKED")
-            SellJunkFrame:UnregisterEvent("UI_ERROR_MESSAGE")
-        end
-
-        -- Create excluded box
-        local titleTX = LeaPlusLC:MakeTx(SellJunkFrame, "Exclusions", 356, -72)
-        titleTX:SetWidth(200)
-        titleTX:SetWordWrap(false)
-        titleTX:SetJustifyH("LEFT")
-
-        -- Show help button for exclusions
-        LeaPlusLC:CreateHelpButton("SellJunkExcludeHelpButton", SellJunkFrame, titleTX, "Enter item IDs separated by commas.  Item IDs can be found in item tooltips while this panel is showing.|n|nJunk items entered here will not be sold automatically.|n|nWhite items entered here will be sold automatically.|n|nThe editbox tooltip will show you more information about the items you have entered.")
-
-        local eb = CreateFrame("Frame", nil, SellJunkFrame)
-        eb:SetSize(200, 180)
-        eb:SetPoint("TOPLEFT", 350, -92)
-        eb:SetBackdrop({
-            bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
-            edgeFile = "Interface\\PVPFrame\\UI-Character-PVP-Highlight",
-            edgeSize = 16,
-            insets = { left = 8, right = 6, top = 8, bottom = 8 },
-        })
-        eb:SetBackdropBorderColor(1.0, 0.85, 0.0, 0.5)
-
-        eb.scroll = CreateFrame("ScrollFrame", nil, eb)
-        eb.scroll:SetPoint("TOPLEFT", eb, 12, -10)
-        eb.scroll:SetPoint("BOTTOMRIGHT", eb, -30, 10)
-
-        eb.Text = CreateFrame("EditBox", nil, eb)
-        eb.Text:SetMultiLine(true)
-        eb.Text:SetWidth(150)
-        eb.Text:SetPoint("TOPLEFT", eb.scroll)
-        eb.Text:SetPoint("BOTTOMRIGHT", eb.scroll)
-        eb.Text:SetMaxLetters(600)
-        eb.Text:SetFontObject(GameFontNormalLarge)
-        eb.Text:SetAutoFocus(false)
-        eb.Text:SetScript("OnEscapePressed", function(self)
-            self:ClearFocus()
-        end)
-        eb.scroll:SetScrollChild(eb.Text)
-
-        -- Set focus on the editbox text when clicking the editbox
-        eb:SetScript("OnMouseDown", function()
-            eb.Text:SetFocus()
-            eb.Text:SetCursorPosition(eb.Text:GetMaxLetters())
-        end)
-
-        -- Function to create whitelist
-        local whiteList = {}
-        local function UpdateWhiteList()
-            wipe(whiteList)
-
-            local whiteString = eb.Text:GetText()
-            if whiteString and whiteString ~= "" then
-                whiteString = whiteString:gsub("[^,%d]", "")
-                local tList = { strsplit(",", whiteString) }
-                for i = 1, #tList do
-                    if tList[i] then
-                        tList[i] = tonumber(tList[i])
-                        if tList[i] then
-                            whiteList[tList[i]] = true
-                        end
-                    end
-                end
-            end
-
-            LeaPlusLC["AutoSellExcludeList"] = whiteString
-            eb.Text:SetText(LeaPlusLC["AutoSellExcludeList"])
-
-        end
-
-        -- Save the excluded list when it changes and at startup
-        eb.Text:SetScript("OnTextChanged", UpdateWhiteList)
-        eb.Text:SetText(LeaPlusLC["AutoSellExcludeList"])
-        UpdateWhiteList()
-
-        -- Create whitelist on startup and option or preset is clicked
-        UpdateWhiteList()
-        LeaPlusCB["AutoSellJunkBtn"]:HookScript("OnClick", function()
-            if IsShiftKeyDown() and IsControlKeyDown() then
-                -- Preset profile
-                UpdateWhiteList()
-            end
-        end)
-
-        -- Function to make tooltip string
-        local function MakeTooltipString()
-
-            local keepMsg = ""
-            local sellMsg = ""
-            local dupMsg = ""
-            local novalueMsg = ""
-            local incompatMsg = ""
-
-            local tipString = eb.Text:GetText()
-            if tipString and tipString ~= "" then
-                tipString = tipString:gsub("[^,%d]", "")
-                local tipList = { strsplit(",", tipString) }
-                for i = 1, #tipList do
-                    if tipList[i] then
-                        tipList[i] = tonumber(tipList[i])
-                        if tipList[i] and tipList[i] > 0 and tipList[i] < 999999999 then
-                            local void, tLink, Rarity, void, void, void, void, void, void, void, ItemPrice = GetItemInfo(tipList[i])
-                            if tLink and tLink ~= "" then
-                                local linkCol = string.sub(tLink, 1, 10)
-                                if linkCol then
-                                    local linkName = tLink:match("%[(.-)%]")
-                                    if linkName and ItemPrice then
-                                        if ItemPrice > 0 then
-                                            if Rarity == 0 then
-                                                -- Junk item
-                                                if string.find(keepMsg, "%(" .. tipList[i] .. "%)") then
-                                                    -- Duplicate (ID appears more than once in list)
-                                                    dupMsg = dupMsg .. linkCol .. linkName .. " (" .. tipList[i] .. ")" .. "|r|n"
-                                                else
-                                                    -- Add junk item to keep list
-                                                    keepMsg = keepMsg .. linkCol .. linkName .. " (" .. tipList[i] .. ")" .. "|r|n"
-                                                end
-                                            elseif Rarity == 1 then
-                                                -- White item
-                                                if string.find(sellMsg, "%(" .. tipList[i] .. "%)") then
-                                                    -- Duplicate (ID appears more than once in list)
-                                                    dupMsg = dupMsg .. linkCol .. linkName .. " (" .. tipList[i] .. ")" .. "|r|n"
-                                                else
-                                                    -- Add non-junk item to sell list
-                                                    sellMsg = sellMsg .. linkCol .. linkName .. " (" .. tipList[i] .. ")" .. "|r|n"
-                                                end
-                                            else
-                                                -- Incompatible item (not junk or white)
-                                                if string.find(incompatMsg, "%(" .. tipList[i] .. "%)") then
-                                                    -- Duplicate (ID appears more than once in list)
-                                                    dupMsg = dupMsg .. linkCol .. linkName .. " (" .. tipList[i] .. ")" .. "|r|n"
-                                                else
-                                                    -- Add item to incompatible list
-                                                    incompatMsg = incompatMsg .. linkCol .. linkName .. " (" .. tipList[i] .. ")" .. "|r|n"
-                                                end
-                                            end
-                                        else
-                                            -- Item has no sell price so cannot be sold
-                                            if string.find(novalueMsg, "%(" .. tipList[i] .. "%)") then
-                                                -- Duplicate (ID appears more than once in list)
-                                                dupMsg = dupMsg .. linkCol .. linkName .. " (" .. tipList[i] .. ")" .. "|r|n"
-                                            else
-                                                -- Add item to cannot be sold list
-                                                novalueMsg = novalueMsg .. linkCol .. linkName .. " (" .. tipList[i] .. ")" .. "|r|n"
-                                            end
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-
-            if keepMsg ~= "" then
-                keepMsg = "|n" .. L["Keep"] .. "|n" .. keepMsg
-            end
-            if sellMsg ~= "" then
-                sellMsg = "|n" .. L["Sell"] .. "|n" .. sellMsg
-            end
-            if dupMsg ~= "" then
-                dupMsg = "|n" .. L["Duplicates"] .. "|n" .. dupMsg
-            end
-            if novalueMsg ~= "" then
-                novalueMsg = "|n" .. L["Cannot be sold"] .. "|n" .. novalueMsg
-            end
-            if incompatMsg ~= "" then
-                incompatMsg = "|n" .. L["Incompatible"] .. "|n" .. incompatMsg
-            end
-
-            eb.tiptext = L["Exclusions"] .. "|n" .. keepMsg .. sellMsg .. dupMsg .. novalueMsg .. incompatMsg
-            eb.Text.tiptext = L["Exclusions"] .. "|n" .. keepMsg .. sellMsg .. dupMsg .. novalueMsg .. incompatMsg
-            if eb.tiptext == L["Exclusions"] .. "|n" then
-                eb.tiptext = eb.tiptext .. "|n" .. L["Nothing to see here."]
-            end
-            if eb.Text.tiptext == L["Exclusions"] .. "|n" then
-                eb.Text.tiptext = "-"
-            end
-
-            if GameTooltip:IsShown() then
-                if MouseIsOver(eb) or MouseIsOver(eb.Text) then
-                    GameTooltip:SetText(eb.tiptext, nil, nil, nil, nil, false)
-                end
-            end
-
-        end
-
-        eb.Text:HookScript("OnTextChanged", MakeTooltipString)
-        eb.Text:HookScript("OnTextChanged", function()
-            LibCompat.After(0.1, function()
-                MakeTooltipString()
-            end)
-        end)
-
-        -- Show the button tooltip for the editbox
-        eb:SetScript("OnEnter", MakeTooltipString)
-        eb:HookScript("OnEnter", LeaPlusLC.TipSee)
-        eb:HookScript("OnEnter", function()
-            GameTooltip:SetText(eb.tiptext, nil, nil, nil, nil, false)
-        end)
-        eb:SetScript("OnLeave", GameTooltip_Hide)
-        eb.Text:SetScript("OnEnter", MakeTooltipString)
-        eb.Text:HookScript("OnEnter", LeaPlusLC.ShowDropTip)
-        eb.Text:HookScript("OnEnter", function()
-            GameTooltip:SetText(eb.tiptext, nil, nil, nil, nil, false)
-        end)
-        eb.Text:SetScript("OnLeave", GameTooltip_Hide)
-
-        -- Show item ID in item tooltips while configuration panel is showing
-        GameTooltip:HookScript("OnTooltipSetItem", function(self)
-            if SellJunkFrame:IsShown() then
-                local void, itemLink = self:GetItem()
-                if itemLink then
-                    local itemID = itemLink:match("item:(%d+):")
-                    if itemID then
-                        self:AddLine(L["Item ID"] .. ": " .. itemID)
-                    end
-                end
-            end
-        end)
-
-
-        -- Vendor function
-        local function SellJunkFunc()
-
-            -- Variables
-            local SoldCount, Rarity, ItemPrice = 0, 0, 0
-            local CurrentItemLink, void
-
-            -- Traverse bags and sell grey items
-            for BagID = 0, 4 do
-                for BagSlot = 1, GetContainerNumSlots(BagID) do
-                    local itemId = GetContainerItemID(BagID, BagSlot)
-                    if itemId then
-                        local CurrentItemLink = select(2, GetItemInfo(itemId))
-                        if CurrentItemLink then
-                            local itemName, _, Rarity, _, _, _, _, _, _, _, ItemPrice = GetItemInfo(CurrentItemLink)
-                            -- Don't sell whitelisted items
-                            if whiteList[itemId] then
-                                if Rarity == 0 then
-                                    -- Junk item to keep
-                                    Rarity = 3
-                                    ItemPrice = 0
-                                elseif Rarity == 1 then
-                                    -- White item to sell
-                                    Rarity = 0
-                                end
-                            end
-
-                            local texture, itemCount, locked, quality, readable = GetContainerItemInfo(BagID, BagSlot)
-                            if itemCount then
-                                -- The item has a valid itemCount, so we can proceed
-                                if Rarity == 0 and ItemPrice ~= 0 then
-                                    SoldCount = SoldCount + 1
-                                    if MerchantFrame:IsShown() then
-                                        -- If merchant frame is open, vendor the item
-                                        UseContainerItem(BagID, BagSlot)
-                                        -- Perform actions on first iteration
-                                        if SellJunkTicker._remainingIterations == IterationCount then
-                                            -- Calculate total price
-                                            totalPrice = totalPrice + (ItemPrice * itemCount)
-                                        end
-                                    else
-                                        -- If merchant frame is not open, stop selling
-                                        StopSelling()
-                                        return
-                                    end
-                                end
-                            else
-                                -- The item count is nil, so we cannot proceed
-                                print("Item count is nil!")
-                            end
-
-                        end
-                    end
-                end
-
-
-            end
-
-            -- Stop selling if no items were sold for this iteration or iteration limit was reached
-            if SoldCount == 0 or SellJunkTicker and SellJunkTicker._remainingIterations == 1 then
-                StopSelling()
-                if totalPrice > 0 and LeaPlusLC["AutoSellShowSummary"] == "On" then
-                    LeaPlusLC:Print(L["Sold junk for"] .. " " .. GetCoinText(totalPrice) .. ".")
-                end
-            end
-
-        end
-
-        -- Function to setup events
-        local function SetupEvents()
-            if LeaPlusLC["AutoSellJunk"] == "On" then
-                SellJunkFrame:RegisterEvent("MERCHANT_SHOW");
-                SellJunkFrame:RegisterEvent("MERCHANT_CLOSED");
-            else
-                SellJunkFrame:UnregisterEvent("MERCHANT_SHOW")
-                SellJunkFrame:UnregisterEvent("MERCHANT_CLOSED")
-            end
-        end
-
-        -- Setup events when option is clicked and on startup (if option is enabled)
-        LeaPlusCB["AutoSellJunk"]:HookScript("OnClick", SetupEvents)
-        if LeaPlusLC["AutoSellJunk"] == "On" then
-            SetupEvents()
-        end
-
-        -- Event handler
-        SellJunkFrame:SetScript("OnEvent", function(self, event)
-            if event == "MERCHANT_SHOW" then
-                -- Check for vendors that refuse to buy items
-                SellJunkFrame:RegisterEvent("UI_ERROR_MESSAGE")
-                -- Reset variable
-                totalPrice = 0
-                -- Do nothing if shift key is held down
-                if IsShiftKeyDown() then
-                    return
-                end
-                -- Cancel existing ticker if present
-                if SellJunkTicker then
-                    SellJunkTicker._cancelled = true;
-                end
-                -- Sell grey items using ticker (ends when all grey items are sold or iteration count reached)
-                SellJunkTicker = LeaPlusNewTicker(0.2, SellJunkFunc, IterationCount)
-                SellJunkFrame:RegisterEvent("ITEM_LOCKED")
-            elseif event == "ITEM_LOCKED" then
-                StartMsg:Show()
-                SellJunkFrame:UnregisterEvent("ITEM_LOCKED")
-            elseif event == "MERCHANT_CLOSED" then
-                -- If merchant frame is closed, stop selling
-                StopSelling()
-            elseif event == "UI_ERROR_MESSAGE" then
-                if arg1 == 46 then
-                    StopSelling() -- Vendor refuses to buy items
-                end
-            end
-        end)
-
-    end
-
-    ----------------------------------------------------------------------
-    --	Repair automatically (no reload required)
-    ----------------------------------------------------------------------
-
-    do
-
-        -- Repair when suitable merchant frame is shown
-        local function RepairFunc()
-            if IsShiftKeyDown() then
-                return
-            end
-            if CanMerchantRepair() then
-                -- If merchant is capable of repair
-                -- Process repair
-                local RepairCost, CanRepair = GetRepairAllCost()
-                if CanRepair then
-                    -- If merchant is offering repair
-                    if LeaPlusLC["AutoRepairGuildFunds"] == "On" and IsInGuild() then
-                        -- Guilded character and guild repair option is enabled
-                        if CanGuildBankRepair() then
-                            -- Character has permission to repair so try guild funds but fallback on character funds (if daily gold limit is reached)
-                            RepairAllItems(1) --test 2.4.3
-                            RepairAllItems()
-                        else
-                            -- Character does not have permission to repair so use character funds
-                            RepairAllItems()
-                        end
-                    else
-                        -- Unguilded character or guild repair option is disabled
-                        RepairAllItems()
-                    end
-                    -- Show cost summary
-                    if LeaPlusLC["AutoRepairShowSummary"] == "On" then
-                        LeaPlusLC:Print(L["Repaired for"] .. " " .. GetCoinText(RepairCost) .. ".")
-                    end
-                end
-            end
-        end
-
-        -- Create event frame
-        local RepairFrame = CreateFrame("FRAME")
-
-        -- Function to setup event
-        local function SetupEvent()
-            if LeaPlusLC["AutoRepairGear"] == "On" then
-                RepairFrame:RegisterEvent("MERCHANT_SHOW")
-            else
-                RepairFrame:UnregisterEvent("MERCHANT_SHOW")
-            end
-        end
-
-        -- Setup event when option is clicked and on startup (if option is enabled)
-        LeaPlusCB["AutoRepairGear"]:HookScript("OnClick", SetupEvent)
-        if LeaPlusLC["AutoRepairGear"] == "On" then
-            SetupEvent()
-        end
-
-        -- Event handler
-        RepairFrame:SetScript("OnEvent", RepairFunc)
-
-        -- Create configuration panel
-        local RepairPanel = LeaPlusLC:CreatePanel("Repair automatically", "RepairPanel")
-
-        LeaPlusLC:MakeTx(RepairPanel, "Settings", 16, -72)
-        LeaPlusLC:MakeCB(RepairPanel, "AutoRepairGuildFunds", "Repair using guild funds if available", 16, -92, false, "If checked, repair costs will be taken from guild funds for characters that are guilded and have permission to repair.")
-        LeaPlusLC:MakeCB(RepairPanel, "AutoRepairShowSummary", "Show repair summary in chat", 16, -112, false, "If checked, a repair summary will be shown in chat when your gear is automatically repaired.")
-
-        -- Help button hidden
-        RepairPanel.h:Hide()
-
-        -- Back button handler
-        RepairPanel.b:SetScript("OnClick", function()
-            RepairPanel:Hide();
-            LeaPlusLC["PageF"]:Show();
-            LeaPlusLC["Page1"]:Show();
-            return
-        end)
-
-        -- Reset button handler
-        RepairPanel.r:SetScript("OnClick", function()
-
-            -- Reset checkboxes
-            LeaPlusLC["AutoRepairGuildFunds"] = "On"
-            LeaPlusLC["AutoRepairShowSummary"] = "On"
-
-            -- Refresh panel
-            RepairPanel:Hide();
-            RepairPanel:Show()
-
-        end)
-
-        -- Show panal when options panel button is clicked
-        LeaPlusCB["AutoRepairBtn"]:SetScript("OnClick", function()
-            if IsShiftKeyDown() and IsControlKeyDown() then
-                -- Preset profile
-                LeaPlusLC["AutoRepairGuildFunds"] = "On"
-                LeaPlusLC["AutoRepairShowSummary"] = "On"
-            else
-                RepairPanel:Show()
-                LeaPlusLC:HideFrames()
-            end
-        end)
-
-    end
 
     ----------------------------------------------------------------------
     -- Hide the combat log
@@ -3396,7 +2047,8 @@ function LeaPlusLC:Isolated()
             end
             -- Target and focus frames
             if LeaPlusLC["ClassColTarget"] == "On" then
-                ColTar:RegisterEvent("GROUP_ROSTER_UPDATE")
+                ColTar:RegisterEvent("PARTY_MEMBERS_CHANGED")
+                ColTar:RegisterEvent("RAID_ROSTER_UPDATE")
                 ColTar:RegisterEvent("PLAYER_TARGET_CHANGED")
                 ColTar:RegisterEvent("PLAYER_FOCUS_CHANGED")
                 ColTar:RegisterEvent("UNIT_FACTION")
@@ -4366,103 +3018,55 @@ function LeaPlusLC:Player()
     end
 
     ----------------------------------------------------------------------
-    -- Restore chat messages
+    -- Chat Message History Ring Buffer (WoW 3.3.5 Compatible)
     ----------------------------------------------------------------------
 
-    if LeaPlusLC["RestoreChatMessages"] == "On" and not LeaLockList["RestoreChatMessages"] then
+    local LeaChatBuffer = {}
+    for i = 1, NUM_CHAT_WINDOWS do
+        LeaChatBuffer[i] = {}
+    end
 
-        -- ===== helpers ==================================================
-        local chatTypeIndexToName = {}
-        for t in pairs(ChatTypeInfo) do
-            chatTypeIndexToName[GetChatTypeIndex(t)] = t
-        end
-
-        local function CleanAndColour(msg, lineID)
-            msg = gsub(msg, "|T.-|t", "")         -- strip textures
-            msg = gsub(msg, "|A.-|a", "")         -- strip atlases
-            local inf = ChatTypeInfo[chatTypeIndexToName[lineID]]
-            local r, g, b = (inf and inf.r) or 1, (inf and inf.g) or 1, (inf and inf.b) or 1
-            local hex = format("|cff%02x%02x%02x", r * 255, g * 255, b * 255)
-            return hex .. msg:gsub("|r", "|r" .. hex) .. "|r"
-        end
-
-        local function WindowActive(idx)
-            local shown = select(7, FCF_GetChatWindowInfo(idx))
-            if shown then
-                return true
-            end
-            local f = _G["ChatFrame" .. idx]
-            return (f and f.isDocked)
-        end
-
-        -- ===== SAVE on logout ===========================================
-        local saver = CreateFrame("Frame")
-        saver:RegisterEvent("PLAYER_LOGOUT")
-        saver:SetScript("OnEvent", function()
-            local name, realm = LibCompat.UnitFullName("player")
-            realm = realm or GetRealmName();
-            if not name then
-                return
-            end
-
-            LeaPlusDB["ChatHistoryName"] = name .. "-" .. realm
-            LeaPlusDB["ChatHistoryTime"] = time()
-
-            for i = 1, 50 do
-                if i ~= 2 and _G["ChatFrame" .. i] and WindowActive(i) then
-                    local cf, num = _G["ChatFrame" .. i], _G["ChatFrame" .. i]:GetNumMessages()
-                    local first = (num > 128) and (num - 128 + 1) or 1
-                    LeaPlusDB["ChatHistory" .. i] = {}
-
-                    for n = first, num do
-                        local txt, _, lineID = cf:GetMessageInfo(n)
-                        if txt and not txt:find(L["Restored"], 1, true) then
-                            tinsert(LeaPlusDB["ChatHistory" .. i], CleanAndColour(txt, lineID))
-                        end
+    local function HookChatFrameAddMessage(cf, idx)
+        if not cf or cf.__leaHooked then return end
+        cf.__leaHooked = true
+        local origAddMessage = cf.AddMessage
+        cf.AddMessage = function(self, text, r, g, b, id, ...)
+            if text then
+                local buf = LeaChatBuffer[idx]
+                if buf then
+                    if #buf >= 128 then
+                        table.remove(buf, 1)
                     end
+                    local hex
+                    if r and g and b then
+                        hex = string.format("|cff%02x%02x%02x", r * 255, g * 255, b * 255)
+                    else
+                        hex = "|cffffffff"
+                    end
+                    table.insert(buf, hex .. tostring(text) .. "|r")
                 end
             end
-        end)
-
-        -- ===== RESTORE once UI is up ====================================
-        local function Restore()
-            if not (LeaPlusDB["ChatHistoryTime"] and LeaPlusDB["ChatHistoryName"]) then
-                return
-            end
-            if time() - LeaPlusDB["ChatHistoryTime"] > 10 then
-                return
-            end
-
-            for i = 1, 50 do
-                if i ~= 2 and _G["ChatFrame" .. i] and WindowActive(i) then
-                    local cf = _G["ChatFrame" .. i]
-                    cf:Clear()
-                    local restored = 0
-
-                    for _, line in ipairs(LeaPlusDB["ChatHistory" .. i] or {}) do
-                        cf:AddMessage(line)
-                        restored = restored + 1
-                    end
-
-                    if restored > 0 then
-                        cf:AddMessage(format("|cffffd800%s %d %s|r",
-                                L["Restored"], restored, L["message from previous session"]))
-                    end
-                end
-            end
-        end
-        LibCompat.After(1, Restore)
-
-        -- ===== OPTION OFF – wipe stored history =============================
-    else
-        LeaPlusDB["ChatHistoryName"] = nil
-        LeaPlusDB["ChatHistoryTime"] = nil
-        for i = 1, 50 do
-            LeaPlusDB["ChatHistory" .. i] = nil
-            LeaPlusDB["ChatTemp" .. i] = nil
-            LeaPlusDB["ChatHistory" .. i .. "Count"] = nil
+            return origAddMessage(self, text, r, g, b, id, ...)
         end
     end
+
+    for i = 1, NUM_CHAT_WINDOWS do
+        local cf = _G["ChatFrame" .. i]
+        if cf and i ~= 2 then
+            HookChatFrameAddMessage(cf, i)
+        end
+    end
+
+    hooksecurefunc("FCF_OpenTemporaryWindow", function()
+        local cf = FCF_GetCurrentChatFrame()
+        if cf then
+            local id = cf:GetID()
+            if id and id > 0 then
+                LeaChatBuffer[id] = LeaChatBuffer[id] or {}
+                HookChatFrameAddMessage(cf, id)
+            end
+        end
+    end)
 
     ----------------------------------------------------------------------
     -- Enhance minimap
@@ -10681,10 +9285,12 @@ function LeaPlusLC:Player()
             TradeSkillSubClassDropDown:ClearAllPoints()
             TradeSkillSubClassDropDown:SetPoint("RIGHT", TradeSkillInvSlotDropDown, "LEFT", 0, 0)
 
-            -- Move search box below rank frame
-            TradeSkillFrameEditBox:ClearAllPoints()
-            TradeSkillFrameEditBox:SetPoint("TOPRIGHT", TradeSkillRankFrame, "BOTTOMRIGHT", 0, 1)
-            TradeSkillFrameEditBox:SetFrameLevel(3)
+            -- Move search box below rank frame (only present if an external addon provides it in 3.3.5)
+            if TradeSkillFrameEditBox then
+                TradeSkillFrameEditBox:ClearAllPoints()
+                TradeSkillFrameEditBox:SetPoint("TOPRIGHT", TradeSkillRankFrame, "BOTTOMRIGHT", 0, 1)
+                TradeSkillFrameEditBox:SetFrameLevel(3)
+            end
 
             -- Move have materials checkbox down slightly
             TradeSkillFrameAvailableFilterCheckButton:ClearAllPoints()
@@ -10807,19 +9413,17 @@ function LeaPlusLC:Player()
             if LeaPlusLC["EnhanceQuestLevels"] == "On" then
                 local quest = GetQuestLogSelection()
                 if quest then
-                    local title, level, suggestedGroup = GetQuestLogTitle(quest)
+                    local title, level, questTag, suggestedGroup = GetQuestLogTitle(quest)
                     if title and level then
-                        if suggestedGroup then
-                            if suggestedGroup == LFG_TYPE_DUNGEON then
+                        if questTag then
+                            if questTag == "Dungeon" or questTag == LFG_TYPE_DUNGEON then
                                 level = level .. "D"
-                            elseif suggestedGroup == RAID then
+                            elseif questTag == "Raid" or questTag == RAID then
                                 level = level .. "R"
-                            elseif suggestedGroup == ELITE then
-                                level = level .. "+"
-                            elseif suggestedGroup == GROUP then
-                                level = level .. "+"
-                            elseif suggestedGroup == PVP then
+                            elseif questTag == "PVP" or questTag == PVP then
                                 level = level .. "P"
+                            elseif questTag == "Elite" or questTag == ELITE or (suggestedGroup and suggestedGroup > 1) then
+                                level = level .. "+"
                             end
                         end
                         QuestInfoTitleHeader:SetText("[" .. level .. "] " .. title)
@@ -10832,7 +9436,7 @@ function LeaPlusLC:Player()
         hooksecurefunc("QuestLogTitleButton_Resize", function(questLogTitle)
             if LeaPlusLC["EnhanceQuestLevels"] == "On" and not questLogTitle.isHeader then
                 local questIndex = questLogTitle:GetID()
-                local title, level, suggestedGroup = GetQuestLogTitle(questIndex)
+                local title, level, questTag, suggestedGroup = GetQuestLogTitle(questIndex)
                 local questTitleTag = questLogTitle.tag
                 local questNormalText = questLogTitle.normalText
                 local questCheck = questLogTitle.check
@@ -10841,17 +9445,15 @@ function LeaPlusLC:Player()
                     level = "0" .. level
                 end
 
-                if suggestedGroup and LeaPlusLC["EnhanceQuestDifficulty"] == "On" then
-                    if suggestedGroup == LFG_TYPE_DUNGEON then
+                if questTag and LeaPlusLC["EnhanceQuestDifficulty"] == "On" then
+                    if questTag == "Dungeon" or questTag == LFG_TYPE_DUNGEON then
                         level = level .. "D"
-                    elseif suggestedGroup == RAID then
+                    elseif questTag == "Raid" or questTag == RAID then
                         level = level .. "R"
-                    elseif suggestedGroup == ELITE then
-                        level = level .. "+"
-                    elseif suggestedGroup == GROUP then
-                        level = level .. "+"
-                    elseif suggestedGroup == PVP then
+                    elseif questTag == "PVP" or questTag == PVP then
                         level = level .. "P"
+                    elseif questTag == "Elite" or questTag == ELITE or (suggestedGroup and suggestedGroup > 1) then
+                        level = level .. "+"
                     end
                 end
 
@@ -10983,11 +9585,9 @@ function LeaPlusLC:Player()
         -- 	end)
         -- end
 
-
-
         local function SearchEditBox_OnTextChanged(editBox)
             local text = editBox:GetText()
-            if not text or text:trim() == "" then
+            if not text or strtrim(text) == "" then
                 editBox.clearButton:Hide()
             else
                 editBox.clearButton:Show()
@@ -11069,38 +9669,35 @@ function LeaPlusLC:Player()
 
         --===== Function with loops to iterate through bag slots =====--
         function SearchEditBox_UpdateButton(event, button)
-            local links, found = {}, false
+            local searchString = LTP_searchEditBox and strtrim(LTP_searchEditBox:GetText()):lower() or ""
+            local found = false
 
             for bag = 0, NUM_BAG_SLOTS do
-                for i = 1, _G["ContainerFrame" .. (bag + 1)].size do
+                local cFrame = _G["ContainerFrame" .. (bag + 1)]
+                local size = cFrame and cFrame.size or 0
+                for i = 1, size do
                     local itemButton = _G["ContainerFrame" .. (bag + 1) .. "Item" .. i]
                     if itemButton then
                         local link = GetContainerItemLink(bag, itemButton:GetID())
-                        if link and link:lower():find(LTP_searchEditBox:GetText():lower(), 1, true) then
-                            table.insert(links, link)
+                        if link and searchString ~= "" and link:lower():find(searchString, 1, true) then
                             itemButton:EnableDrawLayer("BORDER")
                             itemButton:EnableDrawLayer("OVERLAY")
                             found = true
-                        else
+                        elseif searchString ~= "" then
                             itemButton:DisableDrawLayer("BORDER")
                             itemButton:DisableDrawLayer("OVERLAY")
+                        else
+                            itemButton:EnableDrawLayer("BORDER")
+                            itemButton:EnableDrawLayer("OVERLAY")
                         end
                     end
                 end
-
             end
 
-            if not found then
-                for bag = 0, NUM_BAG_SLOTS do
-                    for i = 1, _G["ContainerFrame" .. (bag + 1)].size do
-                        _G["ContainerFrame" .. (bag + 1) .. "Item" .. i]:EnableDrawLayer("BORDER")
-                        _G["ContainerFrame" .. (bag + 1) .. "Item" .. i]:EnableDrawLayer("OVERLAY")
-                    end
-                end
-
+            if not found or searchString == "" then
+                Leatrix_EnableAllBagLayers()
             end
         end
-
 
         --===== Function to re-enable button layers =====--
         function Leatrix_EnableAllBagLayers()
@@ -12381,18 +10978,6 @@ function LeaPlusLC:Player()
         PlayerFrame:RegisterForDrag()
         TargetFrame:RegisterForDrag()
 
-        -- Remove integrated movement functions to avoid conflicts
-        _G.PlayerFrame_ResetUserPlacedPosition = function()
-        end
-        _G.TargetFrame_ResetUserPlacedPosition = function()
-        end
-        _G.PlayerFrame_SetLocked = function()
-        end
-        _G.TargetFrame_SetLocked = function()
-        end
-
-
-
         -- Create frame table (used for local traversal)
         local FrameTable = { DragPlayerFrame = PlayerFrame, DragTargetFrame = TargetFrame }
 
@@ -12759,29 +11344,28 @@ function LeaPlusLC:Player()
                 end
             end
         end)
-        --Fix the blizzard bug with animating
-        -- the PlayerFrame when entering / leavling Vehicle.
-        -- This versions taints on some server, but is much more perfect.
-        -- See below this for actual no-taint code.
 
-        -- Disable Blizzard animation functions
-        function PlayerFrame_AnimateOut(self)
-            -- Instantly update art without animation
-            PlayerFrame_UpdateArt(self)
-        end
-
-        function PlayerFrame_AnimFinished(self)
-            -- No need for animation sequences, update instantly
-            PlayerFrame_UpdateArt(self)
-        end
-
-        function PlayerFrame_UpdateArt(self)
-            if UnitHasVehicleUI("player") then
-                PlayerFrame_ToVehicleArt(self, UnitVehicleSkin("player"))
-            else
-                PlayerFrame_ToPlayerArt(self)
+        -- Safe out-of-combat vehicle art restoration without replacing FrameXML functions
+        local vehFix = CreateFrame("Frame")
+        vehFix:RegisterEvent("UNIT_ENTERED_VEHICLE")
+        vehFix:RegisterEvent("UNIT_EXITED_VEHICLE")
+        vehFix:RegisterEvent("PLAYER_REGEN_ENABLED")
+        vehFix:SetScript("OnEvent", function(self, event, unit)
+            if (event == "UNIT_ENTERED_VEHICLE" or event == "UNIT_EXITED_VEHICLE") and unit == "player" then
+                if InCombatLockdown() then
+                    self.pending = true
+                else
+                    if PlayerFrame and PlayerFrame_UpdateArt then
+                        PlayerFrame_UpdateArt(PlayerFrame)
+                    end
+                end
+            elseif event == "PLAYER_REGEN_ENABLED" and self.pending then
+                self.pending = nil
+                if PlayerFrame and PlayerFrame_UpdateArt then
+                    PlayerFrame_UpdateArt(PlayerFrame)
+                end
             end
-        end
+        end)
 
         --Fix for the blizzard bug with animating
         -- the PlayerFrame when entering / leavling Vehicle.
@@ -13399,361 +11983,6 @@ function LeaPlusLC:Player()
         -- Hide text to speech button
         -- TextToSpeechButton:SetParent(tframe)
 
-    end
-
-    ----------------------------------------------------------------------
-    -- Recent chat window
-    ----------------------------------------------------------------------
-
-    if LeaPlusLC["RecentChatWindow"] == "On" and not LeaLockList["RecentChatWindow"] then
-
-        -- only initialize once
-        if not LeaPlusLC._RecentChatInit then
-            LeaPlusLC._RecentChatInit = true
-
-            ----------------------------------------
-            -- 1) Main frame (Leatrix look)      --
-            ----------------------------------------
-            local frame = CreateFrame("Frame", "LeaPlusRecentChatFrame", UIParent)
-            frame:Hide()
-            frame:SetSize(600, LeaPlusLC["RecentChatSize"])
-            frame:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 130)
-            frame:SetFrameStrata("HIGH")
-            frame:EnableMouse(true)
-            frame:SetResizable(true)
-            frame:SetMinResize(600, 50)
-            frame:SetMaxResize(600, 680)
-            frame:SetBackdrop({
-                bgFile = "Interface\\BUTTONS\\WHITE8X8",
-                edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-                tile = true, tileSize = 16,
-                edgeSize = 16, insets = { left = 4, right = 4, top = 4, bottom = 4 },
-            })
-            frame:SetBackdropColor(0, 0, 0, 0.6)
-
-            -- ADDITION 1: Add to UISpecialFrames for ESC key functionality
-            -- This allows the ESC key to close the window if it doesn't have a more specific target.
-            if _G.UISpecialFrames then
-                -- Ensure the table exists (it always should in WoW client)
-                tinsert(_G.UISpecialFrames, "LeaPlusRecentChatFrame")
-            end
-
-            -- ADDITION 2: Define centralized cleanup logic for when the frame is hidden
-            local function PerformRecentChatFrameCleanup()
-                local editorToClose = LeaPlusLC.RecentChatEdit
-                if editorToClose then
-                    if editorToClose:IsShown() and editorToClose:HasFocus() then
-                        editorToClose:ClearFocus()
-                    end
-                    editorToClose:SetText("")
-                    editorToClose:Hide() -- Hide the editbox itself
-
-                    -- Unset as scroll child if it is
-                    if LeaPlusLC.RecentChatScroll and LeaPlusLC.RecentChatScroll:GetScrollChild() == editorToClose then
-                        LeaPlusLC.RecentChatScroll:SetScrollChild(nil)
-                    end
-                end
-                LeaPlusLC.RecentChatEdit = nil -- Clear the reference
-            end
-
-            -- ADDITION 3: Set the OnHide script for the main frame
-            -- This will be called whenever frame:Hide() is executed,
-            -- either by our Close() function or by the system (e.g., ESC key).
-            frame:SetScript("OnHide", PerformRecentChatFrameCleanup)
-
-            ----------------------------------------
-            -- 2) Title bar (drag/resize/close) --
-            ----------------------------------------
-            local title = CreateFrame("Frame", nil, frame)
-            title:SetSize(600, 36)
-            title:SetPoint("TOP", frame, "TOP", 0, 40)
-            title:SetFrameStrata("MEDIUM")
-            title:EnableMouse(true)
-            title:SetMovable(true)
-            title:SetBackdrop(frame:GetBackdrop())
-            title:SetBackdropColor(0, 0, 0, 0.6)
-
-            -- message count
-            title.count = title:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
-            title.count:SetPoint("LEFT", 9, 0)
-            title.count:SetFont(title.count:GetFont(), 16)
-            title.count:SetText("Messages: 0")
-
-            -- drag-to-size & close hint
-            title.hint = title:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
-            title.hint:SetPoint("RIGHT", -9, 0)
-            title.hint:SetFont(title.hint:GetFont(), 16)
-            title.hint:SetText(L["Drag to size"] .. " | " .. L["Right-click to close"])
-            title.hint:SetWidth(600 - title.count:GetStringWidth() - 30)
-            title.hint:SetJustifyH("RIGHT")
-
-            -- Forward declare Close, ShowChatbox, ResizeEdit, ScrollToBottomReliable
-            local Close
-            local ShowChatbox
-            local ResizeEdit
-            local ScrollToBottomReliable
-
-            -- MODIFICATION 1: Simplify the Close function
-            -- The actual cleanup is now handled by the frame's OnHide script (PerformRecentChatFrameCleanup)
-            Close = function()
-                if frame:IsShown() then
-                    frame:Hide() -- This will trigger the OnHide script
-                end
-            end
-
-            -- drag, resize and close handlers for the title bar
-            title:HookScript("OnMouseDown", function(self, btn)
-                if btn == "LeftButton" then
-                    frame:StartSizing("TOP")
-                elseif btn == "RightButton" then
-                    Close() -- Call the modified Close function
-                end
-            end)
-            title:HookScript("OnMouseUp", function(self, btn)
-                if btn == "LeftButton" then
-                    frame:StopMovingOrSizing()
-                    LeaPlusLC["RecentChatSize"] = frame:GetHeight()
-                elseif btn == "MiddleButton" then
-                    LeaPlusLC["RecentChatSize"] = 170
-                    frame:SetSize(600, 170)
-                    frame:ClearAllPoints()
-                    frame:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 130)
-                end
-            end)
-
-            ----------------------------------------
-            -- 3) ScrollFrame (ElvUI)           --
-            ----------------------------------------
-            local scroll = CreateFrame("ScrollFrame", "LeaPlusRecentChatScroll", frame, "UIPanelScrollFrameTemplate")
-            scroll:SetPoint("TOPLEFT", frame, "TOPLEFT", 26, -36)
-            scroll:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -34, 8)
-
-            local sb = scroll.ScrollBar or LeaPlusRecentChatScrollScrollBar
-            sb:ClearAllPoints()
-            sb:SetPoint("TOPLEFT", scroll, "TOPRIGHT", 3, -16)
-            sb:SetPoint("BOTTOMLEFT", scroll, "BOTTOMRIGHT", 3, 16)
-
-            -- right-click to close on all areas (frame and scroll are static)
-            frame:HookScript("OnMouseDown", function(_, btn)
-                if btn == "RightButton" then
-                    Close()
-                end
-            end)
-            scroll:HookScript("OnMouseDown", function(_, btn)
-                if btn == "RightButton" then
-                    Close()
-                end
-            end)
-
-            -- dynamically resize edit-box height
-            ResizeEdit = function(count)
-                local currentEdit = LeaPlusLC.RecentChatEdit
-                if not currentEdit then
-                    return
-                end
-                local _, size = currentEdit:GetFont()
-                local needed = count * (size + 2)
-                currentEdit:SetHeight(math.max(needed, scroll:GetHeight()))
-            end
-
-            -- scroll with mouse-wheel (existing logic seems fine)
-            scroll:SetScript("OnMouseWheel", function(self, delta)
-                local currentEdit = LeaPlusLC.RecentChatEdit
-                local maxScrollRange = self:GetVerticalScrollRange()
-                if not maxScrollRange or maxScrollRange <= 0 then
-                    return
-                end
-                local currentScroll = self:GetVerticalScroll()
-                local viewHeight = self:GetHeight()
-                local stepAmount
-                if IsAltKeyDown() then
-                    stepAmount = viewHeight
-                else
-                    local fontHeight = 14
-                    if currentEdit and currentEdit:IsShown() then
-                        local _, fh = currentEdit:GetFont()
-                        if fh and fh > 0 then
-                            fontHeight = fh
-                        end
-                    end
-                    local linesToScroll = 3
-                    stepAmount = fontHeight * linesToScroll
-                end
-                local newScrollPosition
-                if delta > 0 then
-                    newScrollPosition = IsShiftKeyDown() and 0 or (currentScroll - stepAmount)
-                else
-                    newScrollPosition = IsShiftKeyDown() and maxScrollRange or (currentScroll + stepAmount)
-                end
-                newScrollPosition = math.max(0, newScrollPosition)
-                newScrollPosition = math.min(newScrollPosition, maxScrollRange)
-                self:SetVerticalScroll(newScrollPosition)
-            end)
-
-            ----------------------------------------
-            -- 4) Populate on Ctrl+Click tabs    --
-            ----------------------------------------
-            local chatTypeIndexToName = {}
-            for chatType in pairs(ChatTypeInfo) do
-                chatTypeIndexToName[GetChatTypeIndex(chatType)] = chatType
-            end
-
-            ScrollToBottomReliable = function(scrollInstance, editInstance, maxAttempts)
-                maxAttempts = maxAttempts or 20
-                local lastHeight = 0
-                local attempts = 0
-                local function tryScroll()
-                    attempts = attempts + 1
-                    if not editInstance or not editInstance:IsShown() then
-                        return
-                    end
-                    local curHeight = editInstance:GetHeight()
-                    if curHeight ~= lastHeight and attempts < maxAttempts then
-                        lastHeight = curHeight
-                        LibCompat.After(0.02, tryScroll)
-                    else
-                        if scrollInstance and scrollInstance:IsShown() then
-                            scrollInstance:SetVerticalScroll(scrollInstance:GetVerticalScrollRange())
-                        end
-                    end
-                end
-                tryScroll()
-            end
-
-            ShowChatbox = function(chatFrame)
-                -- OPTIONAL BUT RECOMMENDED: Clean up previous edit box if one exists
-                if LeaPlusLC.RecentChatEdit then
-                    -- Perform a light cleanup; full cleanup is via OnHide if frame closes.
-                    -- This handles the case where the frame remains open but content changes.
-                    local oldEdit = LeaPlusLC.RecentChatEdit
-                    oldEdit:Hide()
-                    oldEdit:SetText("")
-                    if LeaPlusLC.RecentChatScroll and LeaPlusLC.RecentChatScroll:GetScrollChild() == oldEdit then
-                        LeaPlusLC.RecentChatScroll:SetScrollChild(nil)
-                    end
-                    -- oldEdit will be garbage collected if it has no other references/parentage issues
-                end
-                LeaPlusLC.RecentChatEdit = nil -- Ensure it's nil before creating a new one
-
-
-                local edit = CreateFrame("EditBox", nil, scroll)
-                edit:SetFontObject(ChatFontNormal)
-                edit:SetMultiLine(true)
-                edit:SetMaxLetters(0)
-                edit:SetAutoFocus(false)
-                edit:EnableMouse(true)
-                edit:EnableMouseWheel(true)
-                edit:SetPoint("TOPLEFT", scroll, "TOPLEFT", 0, 0)
-                edit:SetWidth(scroll:GetWidth())
-                scroll:SetScrollChild(edit)
-                LeaPlusLC.RecentChatEdit = edit
-
-                edit:HookScript("OnCursorChanged", function(self_hooked_edit)
-                    if not IsMouseButtonDown("LeftButton") and not IsMouseButtonDown("RightButton") then
-                        LibCompat.After(0.02, function()
-                            local currentEdit = LeaPlusLC.RecentChatEdit
-                            local currentScroll = LeaPlusLC.RecentChatScroll
-                            if not currentEdit or not currentEdit:IsShown() or currentEdit ~= self_hooked_edit then
-                                return
-                            end
-                            local fontHeight = select(2, currentEdit:GetFont()) or 14
-                            local cursorPos = currentEdit:GetCursorPosition()
-                            local text = currentEdit:GetText()
-                            local n = 0;
-                            for i = 1, cursorPos do
-                                if text:sub(i, i) == "\n" then
-                                    n = n + 1
-                                end
-                            end
-                            local line = n + 1
-                            local totalLines = 1;
-                            for _ in text:gmatch("\n") do
-                                totalLines = totalLines + 1
-                            end
-                            local scrollMax = currentScroll:GetVerticalScrollRange()
-                            if line == totalLines then
-                                currentScroll:SetVerticalScroll(scrollMax)
-                            else
-                                local scrollMin = currentScroll:GetVerticalScroll()
-                                local scrollHeight = currentScroll:GetHeight()
-                                local minLine = math.floor(scrollMin / fontHeight + 1.5)
-                                local maxLine = math.floor((scrollMin + scrollHeight) / fontHeight + 0.5)
-                                if line < minLine then
-                                    currentScroll:SetVerticalScroll((line - 1) * fontHeight)
-                                elseif line > maxLine then
-                                    currentScroll:SetVerticalScroll(math.max(0, (line - math.floor(scrollHeight / fontHeight)) * fontHeight))
-                                end
-                            end
-                        end)
-                    end
-                end)
-
-                edit:HookScript("OnMouseDown", function(_, btn)
-                    if btn == "RightButton" then
-                        Close()
-                    end
-                end)
-                edit:SetScript("OnEscapePressed", Close) -- This is important for when editbox has focus
-
-                edit:ClearFocus()
-                edit:SetText("")
-                local num = chatFrame:GetNumMessages()
-
-                if num == 0 then
-                    title.count:SetText("Messages: 0")
-                    ResizeEdit(0)
-                    frame:Show() -- Ensure frame is shown even if empty
-                    return
-                end
-
-                local lines, count = {}, 0
-                for i = 1, num do
-                    local msg, _, lineID = chatFrame:GetMessageInfo(i)
-                    if msg then
-                        msg = gsub(msg, "|T.-|t", "")
-                        msg = gsub(msg, "|A.-|a", "")
-                        local info = ChatTypeInfo[chatTypeIndexToName[lineID]]
-                        local r, g, b = (info and info.r) or 1, (info and info.g) or 1, (info and info.b) or 1
-                        local hex = format("|cff%02x%02x%02x", r * 255, g * 255, b * 255)
-                        msg = hex .. msg:gsub("|r", "|r" .. hex) .. "|r"
-                        table.insert(lines, msg)
-                        count = count + 1
-                    end
-                end
-
-                title.count:SetText("Messages: " .. count)
-                edit:SetText(table.concat(lines, "\n"))
-                ResizeEdit(count)
-                ScrollToBottomReliable(scroll, edit, 20)
-                frame:Show()
-            end
-
-            for id = 1, NUM_CHAT_WINDOWS do
-                local tab = _G["ChatFrame" .. id .. "Tab"]
-                if tab then
-                    tab:HookScript("OnMouseUp", (function(idx)
-                        return function(self, btn)
-                            if btn == "LeftButton" and IsControlKeyDown() then
-                                -- If the same frame is already shown, toggle it off.
-                                -- Otherwise, show new content or first content.
-                                if frame:IsShown() and LeaPlusLC.RecentChatEdit and LeaPlusLC.CurrentRecentChatSource == _G["ChatFrame" .. idx] then
-                                    Close()
-                                else
-                                    LeaPlusLC.CurrentRecentChatSource = _G["ChatFrame" .. idx] -- Track source
-                                    ShowChatbox(_G["ChatFrame" .. idx])
-                                end
-                            end
-                        end
-                    end)(id))
-                end
-            end
-
-            LeaPlusLC.RecentChatFrame = frame
-            LeaPlusLC.RecentChatTitle = title
-            LeaPlusLC.RecentChatScroll = scroll
-            -- LeaPlusLC.RecentChatEdit is now set dynamically in ShowChatbox
-            -- LeaPlusLC.CurrentRecentChatSource is a new helper variable to track the source for toggling
-        end
     end
 
     ----------------------------------------------------------------------
@@ -14669,8 +12898,7 @@ function LeaPlusLC:Player()
             LT["TipUnitName"], LT["TipUnitRealm"] = UnitName(LT["Unit"])
             LT["TipIsPlayer"] = UnitIsPlayer(LT["Unit"])
             LT["UnitLevel"] = UnitLevel(LT["Unit"])
-            -- LT["UnitClass"] = UnitClassBase(LT["Unit"])
-            local _, TipUnitClass = UnitClassBase(LT["Unit"])
+            local _, TipUnitClass = UnitClass(LT["Unit"])
             LT["PlayerControl"] = UnitPlayerControlled(LT["Unit"])
             LT["PlayerRace"] = UnitRace(LT["Unit"])
 
@@ -15017,8 +13245,7 @@ function LeaPlusLC:Player()
 
                     -- If it's not you, but it's a player, show target in class color
                 elseif UnitIsPlayer(LT["Unit"] .. "target") then
-                    -- LT["TargetBase"] = UnitClassBase(LT["Unit"] .. "target")
-                    local _, TargetBase = UnitClassBase(LT["Unit"] .. "target")
+                    local _, TargetBase = UnitClass(LT["Unit"] .. "target")
                     LT["TargetCol"] = LeaPlusLC["RaidColors"][TargetBase]
                     LT["TargetCol"] = "|cff" .. string.format('%02x%02x%02x', LT["TargetCol"].r * 255, LT["TargetCol"].g * 255, LT["TargetCol"].b * 255)
                     LT["Target"] = (LT["TargetCol"] .. LT["Target"])
@@ -15489,7 +13716,8 @@ function LeaPlusLC:RunOnce()
         -- Create tables for list data and zone listing
         local ListData, playlist = {}, {}
         local scrollFrame, willPlay, musicHandle, ZonePage, LastPlayed, LastFolder, TempFolder, HeadingOfClickedTrack, LastMusicHandle
-        -- place with the other locals near willPlay, musicHandle
+        local ShowRandomList -- Forward declaration to prevent nil upvalue error
+        local sBox
         local PrevMusicCVar = nil        -- stores user-setting for Sound_EnableMusic
         local numButtons = 15
         local uframe = CreateFrame("FRAME")
@@ -15724,12 +13952,8 @@ function LeaPlusLC:RunOnce()
         -- Anchor "Random" to "NEW" (standard stacking, no extra gap needed here unless desired)
         MakeButtonNow(L["Random"], L["New Tracks"])
 
-        -- Create Search button object, it will be positioned later
+        -- Create Search button object (anchored below once sBox is created)
         MakeButtonNow(L["Search"])
-        if conbtn[L["Search"]] and conbtn[L["Search"]].ClearAllPoints then
-            conbtn[L["Search"]]:ClearAllPoints()
-            conbtn[L["Search"]]:SetPoint("BOTTOMLEFT", sBox, "TOPLEFT", 1, 5)
-        end
 
         -- Show button highlight for clicked button (this logic remains the same)
         -- ... (the rest of your loop for HookScript OnClick remains as it was in the previous correct version) ...
@@ -15943,10 +14167,8 @@ function LeaPlusLC:RunOnce()
             UpdateList()
         end
 
-
-
         -- Create editbox for search
-        local sBox = LeaPlusLC:CreateEditBox("MusicSearchBox", LeaPlusLC["Page9"], 100, 24, "TOPLEFT", 135, -292, "MusicSearchBox", "MusicSearchBox", 50) -- MODIFIED Y-offset
+        sBox = LeaPlusLC:CreateEditBox("MusicSearchBox", LeaPlusLC["Page9"], 100, 24, "TOPLEFT", 135, -292, "MusicSearchBox", "MusicSearchBox", 50)
         sBox:SetMaxLetters(50)
         sBox:SetTextInsets(6, 12, 0, 0) -- (left, right, top, bottom)
         sBox:SetBackdropBorderColor(1.0, 0.82, 0.0, 0.4)
@@ -16443,7 +14665,6 @@ function LeaPlusLC:RunOnce()
                         HeadingOfClickedTrack = ListData[1]
 
                         PlayTrack()
-                        uframe:RegisterEvent("SOUNDKIT_FINISHED")
                         uframe:RegisterEvent("LOADING_SCREEN_DISABLED")
                         return
 
@@ -17446,11 +15667,18 @@ local function eventHandler(self, event, arg1, arg2, ...)
 
             end
 
-            -- Run other startup items
+            -- Run startup items
             LeaPlusLC:Live()
             LeaPlusLC:Isolated()
             LeaPlusLC:RunOnce()
             LeaPlusLC:SetDim()
+
+            -- Dispatch OnEnable to registered modules
+            for _, mod in pairs(Leatrix_Plus.Modules) do
+                if mod.OnEnable then
+                    mod:OnEnable()
+                end
+            end
 
         end
         return
@@ -17458,6 +15686,14 @@ local function eventHandler(self, event, arg1, arg2, ...)
 
     if event == "PLAYER_LOGIN" then
         LeaPlusLC:Player()
+
+        -- Dispatch OnLogin to registered modules
+        for _, mod in pairs(Leatrix_Plus.Modules) do
+            if mod.OnLogin then
+                mod:OnLogin()
+            end
+        end
+
         collectgarbage()
         return
     end
@@ -17471,8 +15707,15 @@ local function eventHandler(self, event, arg1, arg2, ...)
     -- Save locals back to globals on logout
     if event == "PLAYER_LOGOUT" then
 
-        -- Run the logout function without wipe flag
+        -- Run core logout logic
         LeaPlusLC:PlayerLogout(false)
+
+        -- Dispatch OnLogout to registered modules
+        for _, mod in pairs(Leatrix_Plus.Modules) do
+            if mod.OnLogout then
+                mod:OnLogout(false)
+            end
+        end
 
         -- Automation
         LeaPlusDB["AutomateQuests"] = LeaPlusLC["AutomateQuests"]
@@ -17727,7 +15970,7 @@ local function eventHandler(self, event, arg1, arg2, ...)
         LeaPlusDB["ViewPortAlpha"] = LeaPlusLC["ViewPortAlpha"]
         LeaPlusDB["FullInvSound"] = LeaPlusLC["FullInvSound"]
         LeaPlusDB["SmallerErrorFrame"] = LeaPlusLC["SmallerErrorFrame"]
-        LeaPlusDB["FasterErrorFrame"] = LeaPlusLC["SmallerErrorFrame"]
+        LeaPlusDB["FasterErrorFrame"] = LeaPlusLC["FasterErrorFrame"]
 
         LeaPlusDB["NoRestedEmotes"] = LeaPlusLC["NoRestedEmotes"]
         LeaPlusDB["MuteGameSounds"] = LeaPlusLC["MuteGameSounds"]
