@@ -1,23 +1,19 @@
 ## Interface: 30300
 ## Title: |cff33ffccLeatrix|r |cffffffffPlus|r
-## Version: 0.1
+## Version: 1.0
 ## Notes: Quality of life addon for Wrath of the Lich King (3.3.5)
 ## Author: ggb00, Sattva108, Leatrix
 ## SavedVariables: LeaPlusDB
-## OptionalDeps: ElvUI
 
 Leatrix_InputScrollFrameTemplate.xml
 
-libs\LibStub\LibStub.lua
-libs\LibCompat-1.0\lib.xml
-libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
-libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
-libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
+Libs\LibStub\LibStub.lua
+Libs\LibCompat-1.0\lib.xml
+Libs\CallbackHandler-1.0\CallbackHandler-1.0.xml
+Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
+Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
 
-Leatrix_Plus_Library.lua
 Leatrix_Plus_Locale.lua
-Leatrix_Plus_Flight_Alliance.lua
-Leatrix_Plus_Flight_Horde.lua
 Leatrix_Plus.lua
 
 Modules\Automation.lua
@@ -25,3 +21,7 @@ Modules\Chat.lua
 Modules\Frames.lua
 Modules\Minimap.lua
 Modules\System.lua
+Modules\Interface.lua
+Modules\Social.lua
+Modules\Tooltip.lua
+Modules\Text.lua

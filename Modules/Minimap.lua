@@ -2,146 +2,105 @@
 local _, Leatrix_Plus = ...
 local LeaPlusLC = Leatrix_Plus.LC
 local LeaPlusCB = Leatrix_Plus.CB
-local LeaPlusDB = _G.LeaPlusDB
+local LeaLockList = Leatrix_Plus.LockList
 local L = Leatrix_Plus.L
 
 local Module = {}
 Leatrix_Plus:RegisterModule("Minimap", Module)
 
-----------------------------------------------------------------------
--- 1. Square Minimap & Element Styling
-----------------------------------------------------------------------
-local function SetupSquareMinimap()
-    if LeaPlusLC["SquareMinimap"] ~= "On" then
-        GetMinimapShape = function() return "ROUND" end
-        Minimap:SetMaskTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
-        return
-    end
-
-    GetMinimapShape = function() return "SQUARE" end
-    Minimap:SetMaskTexture("Interface\\ChatFrame\\ChatFrameBackground")
-
-    if MinimapBorder then MinimapBorder:Hide() end
-    if MinimapNorthTag then
-        hooksecurefunc(MinimapNorthTag, "Show", function(self) self:Hide() end)
-        MinimapNorthTag:Hide()
-    end
-
-    -- Clean dark square border
-    local border = CreateFrame("Frame", nil, Minimap)
-    border:SetPoint("TOPLEFT", -1, 1)
-    border:SetPoint("BOTTOMRIGHT", 1, -1)
-    border:SetAlpha(0.8)
-    border:SetBackdrop({
-        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
-        edgeSize = 3,
-    })
-
-    -- Position standard buttons for square layout
-    if MiniMapTracking then
-        MiniMapTracking:SetScale(0.75)
-        MiniMapTracking:ClearAllPoints()
-        MiniMapTracking:SetPoint("TOPLEFT", Minimap, "TOPLEFT", -20, -40)
-    end
-
-    if MiniMapBattlefieldFrame then
-        MiniMapBattlefieldFrame:SetScale(0.75)
-        MiniMapBattlefieldFrame:ClearAllPoints()
-        MiniMapBattlefieldFrame:SetPoint("TOPLEFT", Minimap, "TOPLEFT", 5, -5)
-    end
-
-    if MiniMapLFGFrame then
-        MiniMapLFGFrame:SetScale(0.75)
-        MiniMapLFGFrame:ClearAllPoints()
-        MiniMapLFGFrame:SetPoint("BOTTOMLEFT", Minimap, "BOTTOMLEFT", 5, 5)
-    end
-
-    if MinimapZoomIn then
-        MinimapZoomIn:SetScale(0.75)
-        MinimapZoomIn:ClearAllPoints()
-        MinimapZoomIn:SetPoint("TOPRIGHT", Minimap, "TOPRIGHT", 19, -120)
-    end
-
-    if MinimapZoomOut and MinimapZoomIn then
-        MinimapZoomOut:SetScale(0.75)
-        MinimapZoomOut:ClearAllPoints()
-        MinimapZoomOut:SetPoint("TOP", MinimapZoomIn, "BOTTOM", 0, 0)
-    end
-
-    -- Mail icon styling
-    if MiniMapMailFrame then
-        MiniMapMailFrame:DisableDrawLayer("OVERLAY")
-        local mailIcon = MiniMapMailFrame:GetRegions()
-        if mailIcon and mailIcon.SetTexture then
-            mailIcon:SetTexture("Interface\\Minimap\\TRACKING\\Mailbox")
-        end
-        MiniMapMailFrame:SetScale(1.1)
-        MiniMapMailFrame:ClearAllPoints()
-        MiniMapMailFrame:SetPoint("TOPRIGHT", Minimap, "TOPLEFT", 19, 14)
-    end
-
-    -- Clock placement
-    if TimeManagerClockButton then
-        local regions = { TimeManagerClockButton:GetRegions() }
-        if regions[1] then regions[1]:Hide() end
-        TimeManagerClockButton:ClearAllPoints()
-        TimeManagerClockButton:SetPoint("BOTTOMRIGHT", Minimap, "BOTTOMRIGHT", 10, -6)
-        TimeManagerClockButton:SetFrameLevel(100)
-    end
+-- Minimap base setup
+local function SetupMinimapBase()
+    MinimapCluster:EnableMouse(false)
+    Minimap:Raise()
 end
 
-----------------------------------------------------------------------
--- 2. Mousewheel Zoom & Drag Positioning
-----------------------------------------------------------------------
+-- Controls (movement + mousewheel zoom)
 local function SetupMinimapControls()
-    -- Mousewheel zoom
     Minimap:EnableMouseWheel(true)
     Minimap:SetScript("OnMouseWheel", function(self, delta)
         local zoom = self:GetZoom()
-        if delta > 0 and zoom < (self:GetZoomLevels() - 1) then
+        local maxZoom = self:GetZoomLevels() - 1
+        if delta > 0 and zoom < maxZoom then
+            if MinimapZoomOut then MinimapZoomOut:Enable() end
             self:SetZoom(zoom + 1)
+            if self:GetZoom() == maxZoom and MinimapZoomIn then
+                MinimapZoomIn:Disable()
+            end
         elseif delta < 0 and zoom > 0 then
+            if MinimapZoomIn then MinimapZoomIn:Enable() end
             self:SetZoom(zoom - 1)
+            if self:GetZoom() == 0 and MinimapZoomOut then
+                MinimapZoomOut:Disable()
+            end
         end
     end)
 
-    -- Alt-drag to move
-    Minimap:SetMovable(true)
-    Minimap:SetUserPlaced(true)
-    Minimap:SetDontSavePosition(true)
-    Minimap:SetClampedToScreen(true)
+    if not LeaPlusLC["MinimapPositionCaptured"] then
+        local point, _, relativePoint, x, y = MinimapCluster:GetPoint()
+        LeaPlusLC["MinimapA"] = point or "TOPRIGHT"
+        LeaPlusLC["MinimapR"] = relativePoint or "TOPRIGHT"
+        LeaPlusLC["MinimapX"] = x or 0
+        LeaPlusLC["MinimapY"] = y or 0
+        LeaPlusLC["MinimapPositionCaptured"] = true
+    end
+
+    MinimapCluster:SetMovable(true)
+    MinimapCluster:SetUserPlaced(true)
+    MinimapCluster:SetDontSavePosition(true)
+    MinimapCluster:SetClampedToScreen(true)
+
+    MinimapCluster:ClearAllPoints()
+    MinimapCluster:SetPoint(
+        LeaPlusLC["MinimapA"] or "TOPRIGHT",
+        UIParent,
+        LeaPlusLC["MinimapR"] or "TOPRIGHT",
+        LeaPlusLC["MinimapX"] or 0,
+        LeaPlusLC["MinimapY"] or 0
+    )
+
+    local isMovingMinimap = false
     Minimap:RegisterForDrag("LeftButton")
-
-    Minimap:ClearAllPoints()
-    Minimap:SetPoint(LeaPlusLC["MinimapA"] or "TOPRIGHT", UIParent, LeaPlusLC["MinimapR"] or "TOPRIGHT", LeaPlusLC["MinimapX"] or -17, LeaPlusLC["MinimapY"] or -22)
-
-    Minimap:SetScript("OnDragStart", function(self, btn)
+    Minimap:SetScript("OnDragStart", function(_, btn)
+        if InCombatLockdown() then return end
         if IsAltKeyDown() and btn == "LeftButton" then
-            self:StartMoving()
+            isMovingMinimap = true
+            MinimapCluster:StartMoving()
         end
     end)
-
-    Minimap:SetScript("OnDragStop", function(self)
-        self:StopMovingOrSizing()
-        local a, _, r, x, y = self:GetPoint()
-        LeaPlusLC["MinimapA"], LeaPlusLC["MinimapR"], LeaPlusLC["MinimapX"], LeaPlusLC["MinimapY"] = a, r, x, y
-        self:ClearAllPoints()
-        self:SetPoint(a, UIParent, r, x, y)
+    Minimap:SetScript("OnDragStop", function()
+        if isMovingMinimap then
+            isMovingMinimap = false
+            MinimapCluster:StopMovingOrSizing()
+            local a, _, r, x, y = MinimapCluster:GetPoint()
+            LeaPlusLC["MinimapA"], LeaPlusLC["MinimapR"] = a, r
+            LeaPlusLC["MinimapX"], LeaPlusLC["MinimapY"] = x, y
+            LeaPlusLC["MinimapPositionCaptured"] = true
+        end
     end)
 end
 
-----------------------------------------------------------------------
--- 3. Visibility Toggles
-----------------------------------------------------------------------
+-- Visibility suppressions
 local function SetupMinimapVisibility()
-    if LeaPlusLC["HideMiniZoomBtns"] == "On" then
-        if MinimapZoomIn then MinimapZoomIn:Hide() end
-        if MinimapZoomOut then MinimapZoomOut:Hide() end
+    if LeaPlusLC["HideMiniZoneText"] == "On" then
+        if MinimapBorderTop then
+            MinimapBorderTop:Hide()
+            hooksecurefunc(MinimapBorderTop, "Show", MinimapBorderTop.Hide)
+        end
+        if MinimapZoneTextButton then
+            MinimapZoneTextButton:Hide()
+            hooksecurefunc(MinimapZoneTextButton, "Show", MinimapZoneTextButton.Hide)
+        end
     end
 
-    if LeaPlusLC["HideMiniZoneText"] == "On" then
-        if MinimapBorderTop then MinimapBorderTop:Hide() end
-        if MinimapZoneTextButton then MinimapZoneTextButton:Hide() end
+    if LeaPlusLC["HideMiniZoomBtns"] == "On" then
+        if MinimapZoomIn then
+            MinimapZoomIn:Hide()
+            hooksecurefunc(MinimapZoomIn, "Show", MinimapZoomIn.Hide)
+        end
+        if MinimapZoomOut then
+            MinimapZoomOut:Hide()
+            hooksecurefunc(MinimapZoomOut, "Show", MinimapZoomOut.Hide)
+        end
     end
 
     if LeaPlusLC["HideMiniMapButton"] == "On" and MiniMapWorldMapButton then
@@ -151,7 +110,8 @@ local function SetupMinimapVisibility()
 
     if LeaPlusLC["HideMiniTracking"] == "On" and MiniMapTracking then
         MiniMapTracking:Hide()
-        Minimap:HookScript("OnMouseUp", function(self, button)
+        hooksecurefunc(MiniMapTracking, "Show", MiniMapTracking.Hide)
+        Minimap:HookScript("OnMouseUp", function(_, button)
             if button == "RightButton" and MiniMapTrackingDropDown then
                 ToggleDropDownMenu(1, nil, MiniMapTrackingDropDown, "cursor", -3, -3)
             end
@@ -160,29 +120,86 @@ local function SetupMinimapVisibility()
 
     if LeaPlusLC["HideMiniCalendar"] == "On" and GameTimeFrame then
         GameTimeFrame:Hide()
-        Minimap:HookScript("OnMouseUp", function(self, button)
+        hooksecurefunc(GameTimeFrame, "Show", GameTimeFrame.Hide)
+        Minimap:HookScript("OnMouseUp", function(_, button)
             if button == "MiddleButton" and IsShiftKeyDown() and GameTimeFrame_OnClick then
-                GameTimeFrame_OnClick(self)
+                GameTimeFrame_OnClick(GameTimeFrame)
             end
         end)
     end
 
-    if LeaPlusLC["ClockMouseover"] == "On" and TimeManagerClockButton then
-        TimeManagerClockButton:SetAlpha(0)
-        Minimap:HookScript("OnEnter", function() TimeManagerClockButton:SetAlpha(1) end)
-        Minimap:HookScript("OnLeave", function() TimeManagerClockButton:SetAlpha(0) end)
+    local function InitClockMouseover()
+        if not TimeManagerClockButton then return end
+        if LeaPlusLC["ClockMouseover"] == "On" then
+            TimeManagerClockButton:SetAlpha(0)
+        else
+            TimeManagerClockButton:SetAlpha(1)
+        end
+        if not TimeManagerClockButton.__leaClockHooked then
+            TimeManagerClockButton.__leaClockHooked = true
+            local function ShowClock()
+                if LeaPlusLC["ClockMouseover"] == "On" then
+                    TimeManagerClockButton:SetAlpha(1)
+                end
+            end
+            local function HideClock()
+                if LeaPlusLC["ClockMouseover"] == "On" then
+                    if not MouseIsOver(Minimap) and not MouseIsOver(TimeManagerClockButton) then
+                        TimeManagerClockButton:SetAlpha(0)
+                    end
+                end
+            end
+            Minimap:HookScript("OnEnter", ShowClock)
+            Minimap:HookScript("OnLeave", HideClock)
+            TimeManagerClockButton:HookScript("OnEnter", ShowClock)
+            TimeManagerClockButton:HookScript("OnLeave", HideClock)
+        end
     end
+
+    if TimeManagerClockButton then
+        InitClockMouseover()
+    else
+        local clockWatcher = CreateFrame("Frame")
+        clockWatcher:RegisterEvent("ADDON_LOADED")
+        clockWatcher:SetScript("OnEvent", function(self, _, addon)
+            if addon == "Blizzard_TimeManager" then
+                InitClockMouseover()
+                self:UnregisterAllEvents()
+            end
+        end)
+    end
+
+    if LeaPlusCB["ClockMouseover"] then
+        LeaPlusCB["ClockMouseover"]:HookScript("OnClick", function(self)
+            if TimeManagerClockButton then
+                TimeManagerClockButton:SetAlpha(self:GetChecked() and 0 or 1)
+            end
+        end)
+    end
+
+    local function UpdatePOIArrows()
+        if LeaPlusLC["HideMiniPOIArrows"] == "On" then
+            Minimap:SetStaticPOIArrowTexture("Interface\\AddOns\\Leatrix_Plus\\Assets\\ROTATING-MINIMAPARROW")
+        else
+            Minimap:SetStaticPOIArrowTexture("Interface\\Minimap\\Rotating-MinimapArrow")
+        end
+    end
+
+    UpdatePOIArrows()
+
+    if LeaPlusCB["HideMiniPOIArrows"] then
+        LeaPlusCB["HideMiniPOIArrows"]:HookScript("OnClick", UpdatePOIArrows)
+    end
+
+    local poiFrame = CreateFrame("Frame")
+    poiFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+    poiFrame:SetScript("OnEvent", UpdatePOIArrows)
 end
 
-----------------------------------------------------------------------
--- 4. Show Who Pinged (Fixed 3.3.5 Native Ping Handling)
-----------------------------------------------------------------------
+-- Who pinged
 local function SetupWhoPinged()
-    if LeaPlusLC["ShowWhoPinged"] ~= "On" then return end
-
     local pFrame = CreateFrame("Frame", nil, Minimap)
     pFrame:SetSize(100, 20)
-    pFrame:SetPoint("BOTTOM", Minimap, "BOTTOM", 0, 2)
     pFrame:SetBackdrop({
         bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
         edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -196,26 +213,74 @@ local function SetupWhoPinged()
     pFrame.t = pFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     pFrame.t:SetAllPoints()
 
+    pFrame.lastX = nil
+    pFrame.lastY = nil
+
+    local function Reposition()
+        pFrame:ClearAllPoints()
+        local mode = LeaPlusLC["ShowWhoPingedMode"] or 1
+
+        if mode == 3 and pFrame.lastX and pFrame.lastY then
+            local mapW = Minimap:GetWidth() or 140
+            local mapH = Minimap:GetHeight() or 140
+            local halfW = mapW / 2
+            local halfH = mapH / 2
+            -- Convert 0.0..1.0 normalized ping coordinates to center-relative offsets
+            local xOff = (pFrame.lastX - 0.5) * mapW
+            local yOff = (pFrame.lastY - 0.5) * mapH
+            xOff = math.max(-halfW + 20, math.min(halfW - 20, xOff))
+            yOff = math.max(-halfH + 12, math.min(halfH - 12, yOff))
+            pFrame:SetPoint("CENTER", Minimap, "CENTER", xOff, yOff)
+        elseif mode == 2 then
+            pFrame:SetPoint("TOP", Minimap, "TOP", 0, -2)
+        else
+            pFrame:SetPoint("BOTTOM", Minimap, "BOTTOM", 0, 2)
+        end
+    end
+
+    LeaPlusLC.RepositionShowWhoPinged = Reposition
+
     local lastUnit = nil
     local lastTime = 0
 
-    pFrame:SetScript("OnEvent", function(self, event, unit)
+    pFrame:SetScript("OnEvent", function(_, _, unit, pingX, pingY)
         if not unit or UnitIsUnit(unit, "player") then return end
         local now = GetTime()
-
-        -- Debounce repeated pings from the same unit within 1 second
-        if unit == lastUnit and (now - lastTime < 1.0) then
-            return
-        end
+        if unit == lastUnit and (now - lastTime < 1.0) then return end
         lastUnit = unit
         lastTime = now
 
+        pFrame.lastX = pingX
+        pFrame.lastY = pingY
+
         local _, unitClass = UnitClass(unit)
-        local color = unitClass and RAID_CLASS_COLORS[unitClass] or NORMAL_FONT_COLOR
+        local color = (CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[unitClass]) or (unitClass and RAID_CLASS_COLORS[unitClass]) or NORMAL_FONT_COLOR
         local name = UnitName(unit) or "Unknown"
 
-        pFrame.t:SetFormattedText("|cff%02x%02x%02x%s|r", color.r * 255, color.g * 255, color.b * 255, name)
-        pFrame:SetWidth(pFrame.t:GetStringWidth() + 14)
+        local maxLen = LeaPlusLC["ShowWhoPingedTruncate"] or 6
+        if strlenutf8 and strlenutf8(name) > maxLen then
+            local b = 1
+            local chars = 0
+            while b <= #name and chars < maxLen do
+                local c = string.byte(name, b)
+                if c >= 240 then b = b + 4
+                elseif c >= 224 then b = b + 3
+                elseif c >= 192 then b = b + 2
+                else b = b + 1 end
+                chars = chars + 1
+            end
+            name = string.sub(name, 1, b - 1) .. "..."
+        elseif #name > maxLen then
+            name = string.sub(name, 1, maxLen) .. "..."
+        end
+
+        pFrame.t:SetFormattedText("|cff%02x%02x%02x%s|r",
+            math.floor(color.r * 255),
+            math.floor(color.g * 255),
+            math.floor(color.b * 255),
+            name)
+        pFrame:SetWidth(math.max(pFrame.t:GetStringWidth() + 14, 40))
+        Reposition()
         pFrame:Show()
 
         LibCompat.After(3, function()
@@ -225,36 +290,143 @@ local function SetupWhoPinged()
         end)
     end)
 
-    pFrame:RegisterEvent("MINIMAP_PING")
+    local function SetPingFunc()
+        if LeaPlusLC["ShowWhoPinged"] == "On" then
+            pFrame:RegisterEvent("MINIMAP_PING")
+        else
+            pFrame:UnregisterEvent("MINIMAP_PING")
+            pFrame:Hide()
+        end
+    end
+
+    if LeaPlusCB["ShowWhoPinged"] then
+        LeaPlusCB["ShowWhoPinged"]:HookScript("OnClick", SetPingFunc)
+    end
+    SetPingFunc()
 end
 
-----------------------------------------------------------------------
--- Lifecycle Hooks
-----------------------------------------------------------------------
+-- Minimap panel
+local function SetupMinimapPanel()
+    local SideMinimap = LeaPlusLC:CreatePanel("Enhance Minimap", "SideMinimap")
+    LeaPlusLC:MakeTx(SideMinimap, "Settings", 16, -72)
+
+    -- Left column, visibility toggles
+    LeaPlusLC:MakeCB(SideMinimap, "HideMiniZoomBtns", "Hide Zoom Buttons", 16, -92, true, "Hides the zoom in and zoom out buttons.")
+    LeaPlusLC:MakeCB(SideMinimap, "HideMiniZoneText", "Hide Zone Text Bar", 16, -112, true, "Hides the top zone text header bar.")
+    LeaPlusLC:MakeCB(SideMinimap, "HideMiniMapButton", "Hide World Map Button", 16, -132, true, "Hides the world map globe icon.")
+    LeaPlusLC:MakeCB(SideMinimap, "HideMiniTracking", "Hide Tracking Button", 16, -152, true, "Hides the tracking icon and opens the tracking menu by Right-Clicking the minimap.")
+
+    -- Show who pinged checkbox
+    LeaPlusLC:MakeCB(SideMinimap, "ShowWhoPinged", "Show Who Pinged", 16, -192, false,
+        "Displays the class-colored character name of group members who ping the minimap.")
+
+    -- Nested Ping Panel
+    local PingPanel = LeaPlusLC:CreatePanel("Show Who Pinged", "PingPanel")
+    LeaPlusLC:MakeTx(PingPanel, "Settings", 16, -72)
+    local pingModeDrop = LeaPlusLC:CreateDropDown("ShowWhoPingedMode", "Ping Label Position", PingPanel, 146, "TOPLEFT", 16, -145,
+        { "Bottom of minimap", "Top of minimap", "At ping location" },
+        "Where the pinged player name appears.")
+
+    pingModeDrop.OnSelect = function()
+        if LeaPlusLC.RepositionShowWhoPinged then
+            LeaPlusLC.RepositionShowWhoPinged()
+        end
+    end
+
+    LeaPlusLC:MakeTx(PingPanel, "Name length", 16, -165)
+    LeaPlusLC:MakeSL(PingPanel, "ShowWhoPingedTruncate",
+        "Maximum characters shown for the pinged player name.",
+        1, 8, 1, 16, -185, "%.0f")
+
+    PingPanel.h:Hide()
+    PingPanel.b:SetScript("OnClick", function()
+        PingPanel:Hide()
+        SideMinimap:Show()
+    end)
+    PingPanel.r:SetScript("OnClick", function()
+        LeaPlusLC["ShowWhoPingedMode"] = 1
+        LeaPlusLC["ShowWhoPingedTruncate"] = 6
+        if LeaPlusLC.RepositionShowWhoPinged then
+            LeaPlusLC.RepositionShowWhoPinged()
+        end
+        PingPanel:Hide()
+        PingPanel:Show()
+    end)
+
+    -- Config gear button for Show Who Pinged inside SideMinimap
+    LeaPlusLC:CfgBtn("ShowWhoPingedBtn", LeaPlusCB["ShowWhoPinged"])
+    if LeaPlusCB["ShowWhoPingedBtn"] then
+        LeaPlusCB["ShowWhoPingedBtn"]:SetScript("OnClick", function()
+            SideMinimap:Hide()
+            PingPanel:Show()
+        end)
+    end
+
+    -- Right column
+    LeaPlusLC:MakeCB(SideMinimap, "HideMiniCalendar", "Hide Calendar Button", 226, -92, true, "Hides the calendar icon and opens the calendar by Shift + Middle-Clicking the minimap.")
+    LeaPlusLC:MakeCB(SideMinimap, "ClockMouseover", "Show Clock on Mouseover", 226, -112, false, "Keeps the minimap clock hidden until hovering over the minimap or clock.")
+    LeaPlusLC:MakeCB(SideMinimap, "HideMiniPOIArrows", "Hide POI Arrows", 226, -132, false, "Hides edge quest and point-of-interest tracking arrows on the minimap.")
+
+    -- Third column, scale
+    LeaPlusLC:MakeTx(SideMinimap, "Scale", 406, -72)
+    LeaPlusLC:MakeSL(SideMinimap, "MinimapScale", "Scale of the minimap.", 0.5, 2.0, 0.05, 406, -92, "%.2f")
+
+    if LeaPlusCB["MinimapScale"] then
+        LeaPlusCB["MinimapScale"]:HookScript("OnValueChanged", function(_, val)
+            MinimapCluster:SetScale(val)
+        end)
+    end
+
+    SideMinimap.h.tiptext = "Alt-drag the minimap to move it.  Right-click the minimap to open the tracking menu."
+
+    SideMinimap.h:Hide()
+    SideMinimap.b:SetScript("OnClick", function()
+        SideMinimap:Hide(); LeaPlusLC["PageF"]:Show(); LeaPlusLC["Page5"]:Show()
+    end)
+    SideMinimap.r:SetScript("OnClick", function()
+        LeaPlusLC["MinimapA"] = nil
+        LeaPlusLC["MinimapR"] = nil
+        LeaPlusLC["MinimapX"] = nil
+        LeaPlusLC["MinimapY"] = nil
+        LeaPlusLC["MinimapPositionCaptured"] = nil
+
+        LeaPlusLC["HideMiniZoomBtns"] = "Off"
+        LeaPlusLC["HideMiniZoneText"] = "Off"
+        LeaPlusLC["HideMiniMapButton"] = "On"
+        LeaPlusLC["HideMiniTracking"] = "Off"
+        LeaPlusLC["HideMiniCalendar"] = "Off"
+        LeaPlusLC["ClockMouseover"] = "Off"
+        LeaPlusLC["HideMiniPOIArrows"] = "Off"
+        LeaPlusLC["ShowWhoPinged"] = "On"
+        LeaPlusLC["ShowWhoPingedMode"] = 1
+        LeaPlusLC["ShowWhoPingedTruncate"] = 6
+        LeaPlusLC["MinimapScale"] = 1
+
+        ReloadUI()
+    end)
+
+    if LeaPlusCB["ModMinimapBtn"] then
+        LeaPlusCB["ModMinimapBtn"]:SetScript("OnClick", function()
+            SideMinimap:Show(); LeaPlusLC:HideFrames()
+        end)
+    end
+end
+
+-- Lifecycle
 function Module:OnEnable()
-    if LeaPlusLC["MinimapModder"] ~= "On" or LeaLockList["MinimapModder"] then return end
+    SetupMinimapPanel()
 
-    SetupSquareMinimap()
-    SetupMinimapControls()
-    SetupMinimapVisibility()
-    SetupWhoPinged()
+    if LeaPlusLC["MinimapModder"] == "On" and not LeaLockList["MinimapModder"] then
+        SetupMinimapBase()
+        SetupMinimapControls()
+        SetupMinimapVisibility()
+        SetupWhoPinged()
 
-    -- Apply initial scales
-    if MinimapCluster and LeaPlusLC["MiniClusterScale"] then
-        MinimapCluster:SetScale(LeaPlusLC["MiniClusterScale"])
-    end
-    if Minimap and LeaPlusLC["MinimapScale"] then
-        Minimap:SetScale(LeaPlusLC["MinimapScale"])
+        if MinimapCluster and LeaPlusLC["MinimapScale"] then
+            MinimapCluster:SetScale(LeaPlusLC["MinimapScale"])
+        end
     end
 end
 
-function Module:OnLogin()
-    -- Re-check clock skin after Blizzard_TimeManager loads
-    if IsAddOnLoaded("Blizzard_TimeManager") and LeaPlusLC["SquareMinimap"] == "On" then
-        SetupSquareMinimap()
-    end
-end
-
-function Module:OnLogout(wipeData)
-    -- Positions continuously saved
-end
+function Module:OnLogin() end
+function Module:OnLogout(wipeData) end

@@ -8,55 +8,219 @@ local L = Leatrix_Plus.L
 local Module = {}
 Leatrix_Plus:RegisterModule("System", Module)
 
-----------------------------------------------------------------------
--- 1. Graphics, Sound & Viewport
-----------------------------------------------------------------------
-local function SetupGraphicsAndSound()
-    if LeaPlusLC["NoScreenGlow"] == "On" then SetCVar("ffxGlow", "0") end
-    if LeaPlusLC["NoScreenEffects"] == "On" then SetCVar("ffxDeath", "0"); SetCVar("ffxNetherWorld", "0") end
-    if LeaPlusLC["MaxCameraZoom"] == "On" then SetCVar("cameraDistanceMaxFactor", 4.0) end
+local userSoundSetting = GetCVar("Sound_EnableEmoteSounds") or "1"
+if userSoundSetting == "0" and not IsResting() then
+    userSoundSetting = "1"
+end
+local bTop, bBot, bLeft, bRight
 
-    if LeaPlusLC["SetWeatherDensity"] == "On" then
-        SetCVar("weatherDensity", LeaPlusLC["WeatherLevel"] or 3)
+-- Graphics and sound
+local function SetupGraphicsAndSound()
+    local function ApplyGlow()
+        SetCVar("ffxGlow", LeaPlusLC["NoScreenGlow"] == "On" and "0" or "1")
+    end
+
+    local function ApplyDeathEffects()
+        SetCVar("ffxDeath", LeaPlusLC["NoScreenEffects"] == "On" and "0" or "1")
+    end
+
+    local function ApplyCameraZoom()
+        if LeaPlusLC["MaxCameraZoom"] == "On" then
+            SetCVar("cameraDistanceMax", "50")
+            SetCVar("cameraDistanceMaxFactor", "3.4")
+        else
+            SetCVar("cameraDistanceMaxFactor", "1.9")
+        end
+    end
+
+    ApplyGlow()
+    ApplyDeathEffects()
+    ApplyCameraZoom()
+
+    if LeaPlusCB["NoScreenGlow"] then
+        LeaPlusCB["NoScreenGlow"]:HookScript("OnClick", ApplyGlow)
+    end
+    if LeaPlusCB["NoScreenEffects"] then
+        LeaPlusCB["NoScreenEffects"]:HookScript("OnClick", ApplyDeathEffects)
+    end
+    if LeaPlusCB["MaxCameraZoom"] then
+        LeaPlusCB["MaxCameraZoom"]:HookScript("OnClick", ApplyCameraZoom)
+    end
+
+    local function ApplyWeatherDensity()
+        if LeaPlusLC["SetWeatherDensity"] == "On" then
+            SetCVar("weatherDensity", LeaPlusLC["WeatherLevel"] or 3)
+        else
+            SetCVar("weatherDensity", "3")
+        end
+    end
+
+    ApplyWeatherDensity()
+
+    if not LeaPlusLC.__leaWeatherHooked then
+        LeaPlusLC.__leaWeatherHooked = true
+        local wFrame = CreateFrame("Frame")
+        wFrame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
+        wFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+        wFrame:SetScript("OnEvent", ApplyWeatherDensity)
+
+        -- Prevent Blizzard Video Options (particle density changes) from resetting weather density
+        hooksecurefunc("SetCVar", function(setting, value)
+            if setting and LeaPlusLC["SetWeatherDensity"] == "On" then
+                if setting == "particleDensity" or setting == "graphicsParticleDensity" then
+                    local targetLevel = tostring(LeaPlusLC["WeatherLevel"] or 3)
+                    if GetCVar("weatherDensity") ~= targetLevel then
+                        SetCVar("weatherDensity", targetLevel)
+                    end
+                end
+            end
+        end)
+    end
+
+    local weatherPanel = LeaPlusLC:CreatePanel("Set Weather Density", "weatherPanel")
+    LeaPlusLC:MakeTx(weatherPanel, "Settings", 16, -72)
+    LeaPlusLC:MakeSL(weatherPanel, "WeatherLevel", "Intensity level of weather effects (0 = off, 3 = heavy).", 0, 3, 1, 16, -92, "%.0f")
+    weatherPanel.h:Hide()
+    weatherPanel.b:SetScript("OnClick", function()
+        weatherPanel:Hide(); LeaPlusLC["PageF"]:Show(); LeaPlusLC["Page7"]:Show()
+    end)
+    weatherPanel.r:SetScript("OnClick", function()
+        LeaPlusLC["WeatherLevel"] = 3
+        if LeaPlusLC["SetWeatherDensity"] == "On" then
+            SetCVar("weatherDensity", 3)
+        end
+        weatherPanel:Hide(); weatherPanel:Show()
+    end)
+    if LeaPlusCB["WeatherLevel"] then
+        LeaPlusCB["WeatherLevel"]:HookScript("OnValueChanged", function(_, val)
+            if LeaPlusLC["SetWeatherDensity"] == "On" then
+                SetCVar("weatherDensity", val)
+            end
+        end)
+    end
+    if LeaPlusCB["SetWeatherDensityBtn"] then
+        LeaPlusCB["SetWeatherDensityBtn"]:SetScript("OnClick", function()
+            weatherPanel:Show(); LeaPlusLC:HideFrames()
+        end)
+    end
+
+    local SideViewport = LeaPlusLC:CreatePanel("Enable Viewport Letterbox", "SideViewport")
+    LeaPlusLC:MakeTx(SideViewport, "Top", 16, -72)
+    LeaPlusLC:MakeSL(SideViewport, "ViewPortTop", "Height in pixels of the top black letterbox border.", 0, 300, 5, 16, -92, "%.0f")
+    LeaPlusLC:MakeTx(SideViewport, "Bottom", 16, -132)
+    LeaPlusLC:MakeSL(SideViewport, "ViewPortBottom", "Height in pixels of the bottom black letterbox border.", 0, 300, 5, 16, -152, "%.0f")
+
+    SideViewport.h:Hide()
+    SideViewport.b:SetScript("OnClick", function()
+        SideViewport:Hide(); LeaPlusLC["PageF"]:Show(); LeaPlusLC["Page7"]:Show()
+    end)
+    SideViewport.r:SetScript("OnClick", function()
+        if InCombatLockdown() then
+            LeaPlusLC:Print("You cannot do that in combat.")
+            return
+        end
+        LeaPlusLC["ViewPortTop"] = 0
+        LeaPlusLC["ViewPortBottom"] = 0
+        if LeaPlusCB["ViewPortTop"] then LeaPlusCB["ViewPortTop"]:SetValue(0) end
+        if LeaPlusCB["ViewPortBottom"] then LeaPlusCB["ViewPortBottom"]:SetValue(0) end
+        if bTop then bTop:SetHeight(0) end
+        if bBot then bBot:SetHeight(0) end
+        if bLeft then bLeft:SetWidth(0) end
+        if bRight then bRight:SetWidth(0) end
+        WorldFrame:ClearAllPoints()
+        WorldFrame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 0, 0)
+        WorldFrame:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", 0, 0)
+        SideViewport:Hide(); SideViewport:Show()
+    end)
+
+    if LeaPlusCB["ModViewportBtn"] then
+        LeaPlusCB["ModViewportBtn"]:SetScript("OnClick", function()
+            SideViewport:Show(); LeaPlusLC:HideFrames()
+        end)
     end
 
     if LeaPlusLC["ViewPortEnable"] == "On" then
-        local bTop = WorldFrame:CreateTexture(nil, "ARTWORK")
+        bTop = WorldFrame:CreateTexture(nil, "ARTWORK")
+        bTop:SetTexture("Interface\\Buttons\\WHITE8X8")
         bTop:SetVertexColor(0, 0, 0, 1)
         bTop:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 0, 0)
         bTop:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", 0, 0)
 
-        local bBot = WorldFrame:CreateTexture(nil, "ARTWORK")
+        bBot = WorldFrame:CreateTexture(nil, "ARTWORK")
+        bBot:SetTexture("Interface\\Buttons\\WHITE8X8")
         bBot:SetVertexColor(0, 0, 0, 1)
         bBot:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 0, 0)
         bBot:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", 0, 0)
 
-        local bLeft = WorldFrame:CreateTexture(nil, "ARTWORK")
+        bLeft = WorldFrame:CreateTexture(nil, "ARTWORK")
+        bLeft:SetTexture("Interface\\Buttons\\WHITE8X8")
         bLeft:SetVertexColor(0, 0, 0, 1)
         bLeft:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 0, 0)
         bLeft:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 0, 0)
 
-        local bRight = WorldFrame:CreateTexture(nil, "ARTWORK")
+        bRight = WorldFrame:CreateTexture(nil, "ARTWORK")
+        bRight:SetTexture("Interface\\Buttons\\WHITE8X8")
         bRight:SetVertexColor(0, 0, 0, 1)
         bRight:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", 0, 0)
         bRight:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", 0, 0)
 
-        local a = 1 - (LeaPlusLC["ViewPortAlpha"] or 0)
-        bTop:SetHeight(LeaPlusLC["ViewPortTop"] or 0); bTop:SetAlpha(a)
-        bBot:SetHeight(LeaPlusLC["ViewPortBottom"] or 0); bBot:SetAlpha(a)
-        bLeft:SetWidth(LeaPlusLC["ViewPortLeft"] or 0); bLeft:SetAlpha(a)
-        bRight:SetWidth(LeaPlusLC["ViewPortRight"] or 0); bRight:SetAlpha(a)
+        local alpha = 1 - (LeaPlusLC["ViewPortAlpha"] or 0)
+        bTop:SetHeight(LeaPlusLC["ViewPortTop"] or 0); bTop:SetAlpha(alpha)
+        bBot:SetHeight(LeaPlusLC["ViewPortBottom"] or 0); bBot:SetAlpha(alpha)
+        bLeft:SetWidth(LeaPlusLC["ViewPortLeft"] or 0); bLeft:SetAlpha(alpha)
+        bRight:SetWidth(LeaPlusLC["ViewPortRight"] or 0); bRight:SetAlpha(alpha)
 
-        WorldFrame:SetPoint("TOPLEFT", 0, -(LeaPlusLC["ViewPortResizeTop"] or 0))
-        WorldFrame:SetPoint("BOTTOMRIGHT", 0, (LeaPlusLC["ViewPortResizeBottom"] or 0))
+        WorldFrame:ClearAllPoints()
+        WorldFrame:SetPoint("TOPLEFT", 0, -(LeaPlusLC["ViewPortTop"] or 0))
+        WorldFrame:SetPoint("BOTTOMRIGHT", 0, (LeaPlusLC["ViewPortBottom"] or 0))
+
+        if LeaPlusCB["ViewPortTop"] then
+            LeaPlusCB["ViewPortTop"]:HookScript("OnValueChanged", function(_, val)
+                if InCombatLockdown() then return end
+                bTop:SetHeight(val)
+                WorldFrame:ClearAllPoints()
+                WorldFrame:SetPoint("TOPLEFT", 0, -val)
+                WorldFrame:SetPoint("BOTTOMRIGHT", 0, LeaPlusLC["ViewPortBottom"] or 0)
+            end)
+        end
+        if LeaPlusCB["ViewPortBottom"] then
+            LeaPlusCB["ViewPortBottom"]:HookScript("OnValueChanged", function(_, val)
+                if InCombatLockdown() then return end
+                bBot:SetHeight(val)
+                WorldFrame:ClearAllPoints()
+                WorldFrame:SetPoint("TOPLEFT", 0, -(LeaPlusLC["ViewPortTop"] or 0))
+                WorldFrame:SetPoint("BOTTOMRIGHT", 0, val)
+            end)
+        end
+
+        if CinematicFrame then
+            hooksecurefunc(CinematicFrame, "Show", function()
+                if bTop then bTop:Hide() end
+                if bBot then bBot:Hide() end
+                if bLeft then bLeft:Hide() end
+                if bRight then bRight:Hide() end
+            end)
+            hooksecurefunc(CinematicFrame, "Hide", function()
+                if LeaPlusLC["ViewPortEnable"] == "On" and not (CinematicFrame and CinematicFrame:IsShown()) then
+                    if bTop then bTop:Show() end
+                    if bBot then bBot:Show() end
+                    if bLeft then bLeft:Show() end
+                    if bRight then bRight:Show() end
+                end
+            end)
+        end
     end
 
     if LeaPlusLC["NoRestedEmotes"] == "On" then
         local rFrame = CreateFrame("Frame")
         local function UpdateEmoteSound()
             local szone = GetSubZoneText() or ""
-            local isResting = IsResting() or (szone == "The Grim Guzzler" or szone == "Трактир Угрюмый обжора" or szone == "黑铁酒吧")
-            SetCVar("Sound_EnableEmoteSounds", isResting and "0" or "1")
+            local isResting = IsResting() or szone == "The Grim Guzzler"
+            if isResting then
+                SetCVar("Sound_EnableEmoteSounds", "0")
+            else
+                SetCVar("Sound_EnableEmoteSounds", userSoundSetting)
+            end
         end
         rFrame:RegisterEvent("PLAYER_UPDATE_RESTING")
         rFrame:RegisterEvent("ZONE_CHANGED")
@@ -66,340 +230,120 @@ local function SetupGraphicsAndSound()
     end
 end
 
-----------------------------------------------------------------------
--- 2. Gameplay, Cinematics & Plates
-----------------------------------------------------------------------
-local function SetupGameplayTweaks()
-    if LeaPlusLC["FasterMovieSkip"] == "On" and CinematicFrame then
-        CinematicFrame:HookScript("OnShow", function(self)
-            HideUIPanel(self)
-            LibCompat.After(0.01, StopCinematic)
-        end)
-    end
+-- Universal group color
+local function SetupUniversalGroupColor()
+    local isBlue = (LeaPlusLC["UnivGroupColor"] == "On")
+    local r1, g1, b1 = isBlue and 0.67 or 1.0, isBlue and 0.67 or 0.50, isBlue and 1.0 or 0.0
+    local r2, g2, b2 = isBlue and 0.46 or 1.0, isBlue and 0.78 or 0.28, isBlue and 1.0 or 0.04
 
-    if LeaPlusLC["CombatPlates"] == "On" then
-        local cp = CreateFrame("Frame")
-        cp:RegisterEvent("PLAYER_REGEN_DISABLED")
-        cp:RegisterEvent("PLAYER_REGEN_ENABLED")
-        cp:SetScript("OnEvent", function(_, event)
-            SetCVar("nameplateShowEnemies", event == "PLAYER_REGEN_DISABLED" and 1 or 0)
-        end)
-        SetCVar("nameplateShowEnemies", UnitAffectingCombat("player") and 1 or 0)
-    end
+    ChangeChatColor("RAID", r1, g1, b1)
+    ChangeChatColor("RAID_LEADER", r2, g2, b2)
 
-    if LeaPlusLC["EasyItemDestroy"] == "On" then
-        hooksecurefunc("StaticPopup_Show", function(which)
-            if (which == "DELETE_ITEM" or which == "DELETE_GOOD_ITEM") and LeaPlusLC["EasyItemDestroy"] == "On" then
-                local dialog = StaticPopup_Visible(which)
-                if dialog and _G[dialog] then
-                    local eb = _G[dialog .. "EditBox"]
-                    local b1 = _G[dialog .. "Button1"]
-                    if eb and eb:IsShown() then eb:Hide() end
-                    if b1 then b1:Enable() end
-                end
-            end
-        end)
-    end
-
-    if LeaPlusLC["UnivGroupColor"] == "On" then
-        ChangeChatColor("RAID", 0.67, 0.67, 1)
-        ChangeChatColor("RAID_LEADER", 0.46, 0.78, 1)
-    end
-end
-
-----------------------------------------------------------------------
--- 3. PaperDoll Extras
-----------------------------------------------------------------------
-local function SetupPaperDollExtras()
-    if LeaPlusLC["ShowVolume"] == "On" and CharacterModelFrame then
-        LeaPlusLC["LeaPlusMaxVol"] = tonumber(GetCVar("Sound_MasterVolume")) or 1.0
-        LeaPlusLC:MakeSL(CharacterModelFrame, "LeaPlusMaxVol", "", 0, 1, 0.05, -42, -328, "%.2f")
-        if LeaPlusCB["LeaPlusMaxVol"] then
-            LeaPlusCB["LeaPlusMaxVol"]:SetWidth(64)
-            LeaPlusCB["LeaPlusMaxVol"]:HookScript("OnValueChanged", function()
-                SetCVar("Sound_MasterVolume", LeaPlusLC["LeaPlusMaxVol"])
-            end)
+    if ChatTypeInfo then
+        if ChatTypeInfo["RAID"] then
+            ChatTypeInfo["RAID"].r, ChatTypeInfo["RAID"].g, ChatTypeInfo["RAID"].b = r1, g1, b1
         end
-    end
-
-    if LeaPlusLC["DurabilityStatus"] == "On" and PaperDollFrame then
-        local duraBtn = CreateFrame("Button", nil, PaperDollFrame)
-        duraBtn:SetPoint("BOTTOMRIGHT", CharacterFrame, "BOTTOMRIGHT", -40, 80)
-        duraBtn:SetNormalTexture("Interface\\Buttons\\UI-SpellbookIcon-PrevPage-Up")
-        duraBtn:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight")
-        duraBtn:SetSize(32, 32)
-
-        local slots = { "HeadSlot", "ShoulderSlot", "ChestSlot", "WristSlot", "HandsSlot", "WaistSlot", "LegsSlot", "FeetSlot", "MainHandSlot", "SecondaryHandSlot", "RangedSlot" }
-        local function GetTotalDurability()
-            local curTotal, maxTotal = 0, 0
-            for _, slot in ipairs(slots) do
-                local slotID = GetInventorySlotInfo(slot)
-                if slotID then
-                    local cur, maxDura = GetInventoryItemDurability(slotID)
-                    if cur and maxDura and maxDura > 0 then
-                        curTotal = curTotal + cur
-                        maxTotal = maxTotal + maxDura
-                    end
-                end
-            end
-            return (maxTotal > 0) and (curTotal / maxTotal * 100) or 100
-        end
-
-        duraBtn:SetScript("OnEnter", function()
-            GameTooltip:SetOwner(duraBtn, "ANCHOR_RIGHT")
-            GameTooltip:AddLine(L["Durability"] .. string.format(": %.0f%%", GetTotalDurability()))
-            GameTooltip:Show()
-        end)
-        duraBtn:SetScript("OnLeave", GameTooltip_Hide)
-
-        local dDeath = CreateFrame("Frame")
-        dDeath:RegisterEvent("PLAYER_DEAD")
-        dDeath:SetScript("OnEvent", function()
-            LeaPlusLC:Print(L["You have"] .. string.format(" %.0f%% ", GetTotalDurability()) .. L["durability"] .. ".")
-        end)
-    end
-
-    if LeaPlusLC["ShowVanityControls"] == "On" and PaperDollFrame then
-        LeaPlusLC:MakeCB(PaperDollFrame, "ShowHelm", L["Helm"], 65, -246, false, "")
-        LeaPlusLC:MakeCB(PaperDollFrame, "ShowCloak", L["Cloak"], 275, -246, false, "")
-
-        if LeaPlusCB["ShowHelm"] then
-            LeaPlusCB["ShowHelm"]:HookScript("OnClick", function() ShowHelm(not ShowingHelm()) end)
-            LeaPlusCB["ShowHelm"]:SetChecked(ShowingHelm())
-        end
-        if LeaPlusCB["ShowCloak"] then
-            LeaPlusCB["ShowCloak"]:HookScript("OnClick", function() ShowCloak(not ShowingCloak()) end)
-            LeaPlusCB["ShowCloak"]:SetChecked(ShowingCloak())
+        if ChatTypeInfo["RAID_LEADER"] then
+            ChatTypeInfo["RAID_LEADER"].r, ChatTypeInfo["RAID_LEADER"].g, ChatTypeInfo["RAID_LEADER"].b = r2, g2, b2
         end
     end
 end
 
-----------------------------------------------------------------------
--- 4. Bag Search Box (Container Size Safe)
-----------------------------------------------------------------------
-local function SetupBagSearch()
-    if LeaPlusLC["ShowBagSearchBox"] ~= "On" or LeaLockList["ShowBagSearchBox"] then return end
-    if not ContainerFrame1MoneyFrame then return end
-
-    local sBox = CreateFrame("EditBox", "Leatrix_SearchFrame", ContainerFrame1MoneyFrame, "InputBoxTemplate")
-    sBox:SetSize(120, 15)
-    sBox:SetPoint("TOPRIGHT", ContainerFrame1MoneyFrame, "TOPRIGHT", -9, 185)
-    sBox:SetAutoFocus(false)
-    sBox:SetTextInsets(14, 20, 0, 0)
-
-    local function FilterBags()
-        local query = strtrim(sBox:GetText() or ""):lower()
-        for bag = 0, NUM_BAG_SLOTS do
-            local cFrame = _G["ContainerFrame" .. (bag + 1)]
-            local size = cFrame and cFrame.size or 0
-            for slot = 1, size do
-                local btn = _G["ContainerFrame" .. (bag + 1) .. "Item" .. slot]
-                if btn then
-                    local link = GetContainerItemLink(bag, btn:GetID())
-                    if query == "" or (link and link:lower():find(query, 1, true)) then
-                        btn:EnableDrawLayer("BORDER")
-                        btn:EnableDrawLayer("OVERLAY")
-                    else
-                        btn:DisableDrawLayer("BORDER")
-                        btn:DisableDrawLayer("OVERLAY")
-                    end
-                end
-            end
-        end
-    end
-
-    sBox:SetScript("OnTextChanged", FilterBags)
-    sBox:SetScript("OnEscapePressed", function(self)
-        self:SetText("")
-        self:ClearFocus()
-        FilterBags()
-    end)
-end
-
-----------------------------------------------------------------------
--- 5. Auction House Enhancements
-----------------------------------------------------------------------
-local function SetupAuctionHouse()
-    if LeaPlusLC["AhExtras"] ~= "On" then return end
-
-    local function OnAuctionLoaded()
-        if not AuctionFrameAuctions then return end
-
-        hooksecurefunc("DurationDropDown_Initialize", function()
-            if LeaPlusDB["AHDuration"] and LeaPlusDB["AHDuration"] >= 1 and LeaPlusDB["AHDuration"] <= 3 then
-                AuctionFrameAuctions.duration = LeaPlusDB["AHDuration"]
-            end
-        end)
-        hooksecurefunc("DurationDropDown_OnClick", function()
-            LeaPlusDB["AHDuration"] = AuctionFrameAuctions.duration
-        end)
-
-        hooksecurefunc("ContainerFrameItemButton_OnModifiedClick", function(self, button)
-            if button == "LeftButton" and IsAltKeyDown() and AuctionFrame and AuctionFrame:IsShown() then
-                local bag, slot = self:GetParent():GetID(), self:GetID()
-                PickupContainerItem(bag, slot)
-                ClickAuctionSellItemButton()
-                ClearCursor()
-            end
-        end)
-    end
-
-    if IsAddOnLoaded("Blizzard_AuctionUI") then
-        OnAuctionLoaded()
-    else
-        local aWait = CreateFrame("Frame")
-        aWait:RegisterEvent("ADDON_LOADED")
-        aWait:SetScript("OnEvent", function(self, _, addon)
-            if addon == "Blizzard_AuctionUI" then
-                OnAuctionLoaded()
-                self:UnregisterAllEvents()
-            end
-        end)
+local function HookUnivGroupColorToggle()
+    if LeaPlusCB["UnivGroupColor"] and not LeaPlusCB["UnivGroupColor"].__leaHooked then
+        LeaPlusCB["UnivGroupColor"].__leaHooked = true
+        LeaPlusCB["UnivGroupColor"]:HookScript("OnClick", SetupUniversalGroupColor)
     end
 end
 
-----------------------------------------------------------------------
--- 6. Enlarged Trainers, Professions & Quest Log
-----------------------------------------------------------------------
-local function SetupFrameEnlargements()
-    -- Trainers
-    if LeaPlusLC["EnhanceTrainers"] == "On" then
-        local function ApplyTrainer()
-            if not ClassTrainerFrame then return end
-            ClassTrainerFrame:SetWidth(714)
-            ClassTrainerListScrollFrame:SetWidth(295)
-            ClassTrainerDetailScrollFrame:ClearAllPoints()
-            ClassTrainerDetailScrollFrame:SetPoint("TOPLEFT", ClassTrainerFrame, "TOPLEFT", 352, -74)
-        end
-        if IsAddOnLoaded("Blizzard_TrainerUI") then ApplyTrainer()
-        else
-            local tw = CreateFrame("Frame")
-            tw:RegisterEvent("ADDON_LOADED")
-            tw:SetScript("OnEvent", function(self, _, addon)
-                if addon == "Blizzard_TrainerUI" then ApplyTrainer(); self:UnregisterAllEvents() end
-            end)
-        end
-    end
+-- Disable bag automation
+local function SetupBagAutomation()
+    if LeaPlusLC["NoBagAutomation"] ~= "On" then return end
 
-    -- Professions (3.3.5 Safe: No TradeSkillFrameEditBox call)
-    if LeaPlusLC["EnhanceProfessions"] == "On" and not LeaLockList["EnhanceProfessions"] then
-        local function ApplyTrade()
-            if not TradeSkillFrame then return end
-            TradeSkillFrame:SetWidth(714)
-            TradeSkillListScrollFrame:SetWidth(295)
-            TradeSkillDetailScrollFrame:ClearAllPoints()
-            TradeSkillDetailScrollFrame:SetPoint("TOPLEFT", TradeSkillFrame, "TOPLEFT", 352, -74)
-        end
-        if IsAddOnLoaded("Blizzard_TradeSkillUI") then ApplyTrade()
-        else
-            local pw = CreateFrame("Frame")
-            pw:RegisterEvent("ADDON_LOADED")
-            pw:SetScript("OnEvent", function(self, _, addon)
-                if addon == "Blizzard_TradeSkillUI" then ApplyTrade(); self:UnregisterAllEvents() end
-            end)
-        end
-    end
+    local f = CreateFrame("Frame")
+    f:RegisterEvent("MERCHANT_SHOW")
+    f:RegisterEvent("BANKFRAME_OPENED")
+    f:RegisterEvent("MAIL_SHOW")
 
-    -- Quest Log Details & Levels
-    if LeaPlusLC["EnhanceQuestLog"] == "On" then
-        hooksecurefunc("QuestLog_UpdateQuestDetails", function()
-            if LeaPlusLC["EnhanceQuestLevels"] == "On" then
-                local quest = GetQuestLogSelection()
-                if quest then
-                    local title, level, questTag, suggestedGroup = GetQuestLogTitle(quest)
-                    if title and level then
-                        local tag = ""
-                        if questTag == "Dungeon" or questTag == LFG_TYPE_DUNGEON then tag = "D"
-                        elseif questTag == "Raid" or questTag == RAID then tag = "R"
-                        elseif questTag == "PVP" or questTag == PVP then tag = "P"
-                        elseif questTag == "Elite" or questTag == ELITE or (suggestedGroup and suggestedGroup > 1) then tag = "+" end
-                        QuestInfoTitleHeader:SetText("[" .. level .. tag .. "] " .. title)
-                    end
-                end
-            end
-        end)
-    end
-end
-
-----------------------------------------------------------------------
--- 7. Flight Times (LibCandyBar)
-----------------------------------------------------------------------
-local function SetupFlightTimes()
-    if LeaPlusLC["ShowFlightTimes"] ~= "On" then return end
-
-    local candy = LibStub("LibCandyBar-3.0", true)
-    if not candy then return end
-
-    Leatrix_Plus["FlightData"] = Leatrix_Plus["FlightData"] or {}
-    if Leatrix_Plus.LoadFlightDataAlliance then Leatrix_Plus:LoadFlightDataAlliance() end
-    if Leatrix_Plus.LoadFlightDataHorde then Leatrix_Plus:LoadFlightDataHorde() end
-
-    hooksecurefunc("TakeTaxiNode", function(node)
-        if UnitAffectingCombat("player") then return end
-        local faction = UnitFactionGroup("player")
-        local continent = GetCurrentMapContinent()
-        local data = Leatrix_Plus["FlightData"]
-
-        for i = 1, NumTaxiNodes() do
-            if TaxiNodeGetType(i) == "CURRENT" then
-                local startX, startY = TaxiNodePosition(i)
-                local endX, endY = TaxiNodePosition(node)
-                local route = string.format("%0.2f:%0.2f:%0.2f:%0.2f", startX, startY, endX, endY)
-
-                if data[faction] and data[faction][continent] and data[faction][continent][route] then
-                    local duration = data[faction][continent][route]
-                    if duration and duration > 0 then
-                        if LeaPlusLC.FlightProgressBar then
-                            LeaPlusLC.FlightProgressBar:Stop()
-                        end
-                        local bar = candy:New("Interface\\TargetingFrame\\UI-StatusBar", LeaPlusLC["FlightBarWidth"] or 230, 16)
-                        bar:SetPoint(LeaPlusLC["FlightBarA"] or "TOP", UIParent, LeaPlusLC["FlightBarR"] or "TOP", LeaPlusLC["FlightBarX"] or 0, LeaPlusLC["FlightBarY"] or -66)
-                        bar:SetScale(LeaPlusLC["FlightBarScale"] or 2)
-                        bar:SetDuration(duration)
-                        bar:Start()
-                        LeaPlusLC.FlightProgressBar = bar
-
-                        -- Stop when landing detected
-                        local landingWatcher = CreateFrame("Frame")
-                        landingWatcher:SetScript("OnUpdate", function(self, elapsed)
-                            if not UnitOnTaxi("player") then
-                                self:SetScript("OnUpdate", nil)
-                                if LeaPlusLC.FlightProgressBar then
-                                    LeaPlusLC.FlightProgressBar:Stop()
-                                    LeaPlusLC.FlightProgressBar = nil
-                                end
-                            end
-                        end)
-                    end
-                end
-                break
-            end
+    f:SetScript("OnEvent", function()
+        if CloseAllBags then
+            CloseAllBags()
         end
     end)
 end
 
-----------------------------------------------------------------------
--- Lifecycle Hooks
-----------------------------------------------------------------------
+-- Disable loot warnings
+local function SetupNoLootWarnings()
+    local f = CreateFrame("Frame")
+
+    local function UpdateLootRegistration()
+        if LeaPlusLC["NoConfirmLoot"] == "On" then
+            f:RegisterEvent("CONFIRM_LOOT_ROLL")
+            f:RegisterEvent("LOOT_BIND_CONFIRM")
+            f:RegisterEvent("CONFIRM_DISENCHANT_ROLL")
+            f:RegisterEvent("MERCHANT_CONFIRM_TRADE_TIMER_REMOVAL")
+            f:RegisterEvent("MAIL_LOCK_SEND_ITEMS")
+        else
+            f:UnregisterAllEvents()
+        end
+    end
+
+    f:SetScript("OnEvent", function(_, event, a1, a2)
+        if event == "CONFIRM_LOOT_ROLL" then
+            ConfirmLootRoll(a1, a2)
+            StaticPopup_Hide("CONFIRM_LOOT_ROLL")
+        elseif event == "LOOT_BIND_CONFIRM" then
+            ConfirmLootSlot(a1)
+            StaticPopup_Hide("LOOT_BIND")
+        elseif event == "CONFIRM_DISENCHANT_ROLL" then
+            ConfirmLootRoll(a1, a2)
+            StaticPopup_Hide("CONFIRM_LOOT_ROLL")
+        elseif event == "MERCHANT_CONFIRM_TRADE_TIMER_REMOVAL" then
+            local dialog = StaticPopup_Visible("MERCHANT_CONFIRM_TRADE_TIMER_REMOVAL")
+            if dialog and _G[dialog] then
+                StaticPopup_OnClick(_G[dialog], 1)
+            else
+                if CursorHasItem() then
+                    PickupMerchantItem()
+                end
+                StaticPopup_Hide("MERCHANT_CONFIRM_TRADE_TIMER_REMOVAL")
+            end
+        elseif event == "MAIL_LOCK_SEND_ITEMS" then
+            RespondMailLockSendItem(a1, true)
+        end
+    end)
+
+    if LeaPlusCB["NoConfirmLoot"] then
+        LeaPlusCB["NoConfirmLoot"]:HookScript("OnClick", UpdateLootRegistration)
+    end
+
+    UpdateLootRegistration()
+end
+
+-- Lifecycle
 function Module:OnEnable()
     SetupGraphicsAndSound()
-    SetupGameplayTweaks()
-    SetupBagSearch()
-    SetupAuctionHouse()
-    SetupFrameEnlargements()
-    SetupFlightTimes()
+    SetupUniversalGroupColor()
+    HookUnivGroupColorToggle()
+    SetupBagAutomation()
+    SetupNoLootWarnings()
 end
 
 function Module:OnLogin()
-    SetupPaperDollExtras()
+    SetupUniversalGroupColor()
+    HookUnivGroupColorToggle()
 end
 
 function Module:OnLogout(wipeData)
+    if LeaPlusLC["NoRestedEmotes"] == "On" and (IsResting() or GetSubZoneText() == "The Grim Guzzler") then
+        SetCVar("Sound_EnableEmoteSounds", userSoundSetting)
+    end
+
     if wipeData then
         SetCVar("ffxGlow", "1")
         SetCVar("ffxDeath", "1")
-        SetCVar("ffxNetherWorld", "1")
         SetCVar("weatherDensity", "3")
+        SetCVar("cameraDistanceMax", "15")
         SetCVar("cameraDistanceMaxFactor", "1.9")
         ChangeChatColor("RAID", 1, 0.5, 0)
         ChangeChatColor("RAID_LEADER", 1, 0.28, 0.04)

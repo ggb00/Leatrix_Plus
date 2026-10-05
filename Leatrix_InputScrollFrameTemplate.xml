@@ -4,21 +4,44 @@
 
     <Script>
         function Lea_InputScrollFrame_OnLoad(self)
-            local scrollBar = self.ScrollBar or _G[self:GetName() .. "ScrollBar"]
+            local name = self:GetName()
+            if not name then return end
+
+            local scrollBar = _G[name .. "ScrollBar"]
+            local editBox = _G[name .. "EditBox"]
+            self.ScrollBar = scrollBar
+            self.EditBox = editBox
+            self.CharCount = _G[name .. "CharCount"]
+
             if scrollBar then
                 scrollBar:ClearAllPoints()
                 scrollBar:SetPoint("TOPLEFT", self, "TOPRIGHT", 6, -16)
                 scrollBar:SetPoint("BOTTOMLEFT", self, "BOTTOMRIGHT", 6, 16)
                 scrollBar:Hide()
             end
+
+            if editBox then
+                editBox.Instructions = _G[editBox:GetName() .. "Instructions"]
+                local w = self:GetWidth()
+                if w and w > 18 then
+                    editBox:SetWidth(w - 18)
+                end
+            end
+        end
+
+        function Lea_InputScrollFrame_OnSizeChanged(self)
             if self.EditBox then
-                self.EditBox:SetWidth(self:GetWidth() - 18)
+                local w = self:GetWidth()
+                if w and w > 18 then
+                    self.EditBox:SetWidth(w - 18)
+                end
             end
         end
 
         function Lea_InputScrollFrame_OnMouseDown(self)
-            if self.EditBox then
-                self.EditBox:SetFocus()
+            local editBox = self.EditBox or _G[self:GetName() .. "EditBox"]
+            if editBox then
+                editBox:SetFocus()
             end
         end
 
@@ -37,24 +60,68 @@
             end
         end
 
-        function Lea_InputScrollFrame_OnUpdate(self)
-            ScrollingEdit_OnUpdate(self)
+        function Lea_InputScrollFrame_OnUpdate(self, elapsed)
+            ScrollingEdit_OnUpdate(self, elapsed, self:GetParent())
+        end
+
+        function Lea_InputScrollFrame_OnScrollRangeChanged(self, xrange, yrange)
+            local scrollBar = self.ScrollBar or _G[self:GetName() .. "ScrollBar"]
+            if not scrollBar then return end
+            if not yrange then
+                yrange = self:GetVerticalScrollRange()
+            end
+            local value = scrollBar:GetValue()
+            if value > yrange then
+                value = yrange
+            end
+            scrollBar:SetMinMaxValues(0, yrange)
+            if scrollBar:GetValue() ~= value then
+                scrollBar:SetValue(value)
+            end
+            if math.floor(yrange) == 0 then
+                scrollBar:Hide()
+            else
+                scrollBar:Show()
+            end
+        end
+
+        function Lea_InputScrollFrame_OnVerticalScroll(self, value)
+            local parent = self:GetParent()
+            if parent then
+                parent:SetVerticalScroll(value)
+            end
+        end
+
+        function Lea_InputScrollFrame_OnMouseWheel(self, delta)
+            local scrollBar = self.ScrollBar or (self:GetParent() and self:GetParent().ScrollBar)
+            if not scrollBar or not scrollBar:IsShown() then return end
+            local cur = scrollBar:GetValue()
+            local minVal, maxVal = scrollBar:GetMinMaxValues()
+            local step = 18
+            if delta > 0 then
+                scrollBar:SetValue(math.max(minVal, cur - step))
+            else
+                scrollBar:SetValue(math.min(maxVal, cur + step))
+            end
         end
     </Script>
 
-    <ScrollFrame name="Leatrix_InputScrollFrameTemplate" virtual="true">
+    <ScrollFrame name="Leatrix_InputScrollFrameTemplate" virtual="true" enableMouseWheel="true">
         <Frames>
-            <Slider name="$parentScrollBar" inherits="UIPanelScrollBarTemplate" parentKey="ScrollBar" hidden="true">
+            <Slider name="$parentScrollBar" inherits="UIPanelScrollBarTemplate" hidden="true">
                 <Anchors>
                     <Anchor point="TOPLEFT" relativePoint="TOPRIGHT" x="6" y="-16"/>
                     <Anchor point="BOTTOMLEFT" relativePoint="BOTTOMRIGHT" x="6" y="16"/>
                 </Anchors>
+                <Scripts>
+                    <OnValueChanged function="Lea_InputScrollFrame_OnVerticalScroll"/>
+                </Scripts>
             </Slider>
         </Frames>
 
         <Layers>
             <Layer level="OVERLAY">
-                <FontString inherits="GameFontDisableLarge" parentKey="CharCount">
+                <FontString name="$parentCharCount" inherits="GameFontDisableLarge">
                     <Anchors>
                         <Anchor point="BOTTOMRIGHT" x="-6" y="0"/>
                     </Anchors>
@@ -64,18 +131,21 @@
 
         <Scripts>
             <OnLoad function="Lea_InputScrollFrame_OnLoad"/>
+            <OnSizeChanged function="Lea_InputScrollFrame_OnSizeChanged"/>
             <OnMouseDown function="Lea_InputScrollFrame_OnMouseDown"/>
+            <OnScrollRangeChanged function="Lea_InputScrollFrame_OnScrollRangeChanged"/>
+            <OnMouseWheel function="Lea_InputScrollFrame_OnMouseWheel"/>
         </Scripts>
 
         <ScrollChild>
-            <EditBox parentKey="EditBox" multiLine="true" countInvisibleLetters="true" autoFocus="false">
+            <EditBox name="$parentEditBox" multiLine="true" autoFocus="false" enableMouseWheel="true">
                 <Size x="1" y="1"/>
                 <Anchors>
                     <Anchor point="TOPLEFT"/>
                 </Anchors>
                 <Layers>
                     <Layer level="BORDER">
-                        <FontString parentKey="Instructions" inherits="GameFontNormalSmall" justifyH="LEFT" justifyV="TOP">
+                        <FontString name="$parentInstructions" inherits="GameFontNormalSmall" justifyH="LEFT" justifyV="TOP">
                             <Anchors>
                                 <Anchor point="TOPLEFT" x="0" y="0"/>
                             </Anchors>
@@ -89,6 +159,7 @@
                     <OnCursorChanged function="ScrollingEdit_OnCursorChanged"/>
                     <OnUpdate function="Lea_InputScrollFrame_OnUpdate"/>
                     <OnEscapePressed function="Lea_InputScrollFrame_OnEscapePressed"/>
+                    <OnMouseWheel function="Lea_InputScrollFrame_OnMouseWheel"/>
                 </Scripts>
                 <FontString inherits="GameFontHighlightSmall"/>
             </EditBox>
