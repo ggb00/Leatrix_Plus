@@ -109,7 +109,6 @@ end
 LeaPlusLC.AcquireGrid = AcquireGrid
 LeaPlusLC.ReleaseGrid = ReleaseGrid
 
--- Mover helper
 local function CreateMover(key, optKey, realFrame, dbA, dbR, dbX, dbY, dbScale, defaultWidth, defaultHeight, titleText)
     if not realFrame then return end
 
@@ -276,7 +275,6 @@ local function ConnectMoverPanel(key, panelTitle, btnKey, scaleVar, sliderText, 
     end
 end
 
--- Improved Unit Frames (clean, fixed 3.3.5 backport of UnitFramesImproved)
 local function SetupEnhanceUnitFrames()
     if LeaPlusLC["EnhanceUnitFrames"] ~= "On" or LeaLockList["EnhanceUnitFrames"] then return end
 
@@ -387,7 +385,6 @@ local function SetupEnhanceUnitFrames()
             PlayerFrameTexture:SetTexCoord(1.0, 0.09375, 0.0, 0.78125)
         end
 
-        -- Suppress red combat overlays that muddy the class-colored health bar to brown
         if PlayerStatusTexture then
             PlayerStatusTexture:SetTexture(nil)
             PlayerStatusTexture:Hide()
@@ -480,7 +477,6 @@ local function SetupEnhanceUnitFrames()
                 frame.nameBackground:Hide()
             end
 
-            -- Ensure Rogue / Feral Druid combo points sit cleanly on top of 29px TargetFrame
             if frame == TargetFrame and ComboPoint1 and not InCombatLockdown() then
                 ComboPoint1:ClearAllPoints()
                 ComboPoint1:SetPoint("TOPRIGHT", TargetFrame, "TOPRIGHT", -44, -9)
@@ -519,11 +515,7 @@ local function SetupEnhanceUnitFrames()
             if texture and not forceNormalTexture then
                 frame.borderTexture:SetTexture(texture)
             else
-                if frame == FocusFrame and not texture then
-                    frame.borderTexture:SetTexture(ASSET_PATH .. "UI-FocusTargetingFrame")
-                else
-                    frame.borderTexture:SetTexture(texture or (ASSET_PATH .. "UI-TargetingFrame"))
-                end
+                frame.borderTexture:SetTexture(ASSET_PATH .. "UI-TargetingFrame")
             end
         end
 
@@ -550,12 +542,10 @@ local function SetupEnhanceUnitFrames()
         end
     end
 
-    -- Hook unit health updates to refresh status bar color dynamically
     hooksecurefunc("UnitFrameHealthBar_Update", function(statusbar)
         UpdateBarColor(statusbar)
     end)
 
-    -- Status text formatter for Health, Mana, Power, and Druid Alternate Mana bars
     hooksecurefunc("TextStatusBar_UpdateTextString", function(statusBar)
         if not statusBar or statusBar.pauseUpdates then return end
 
@@ -581,7 +571,6 @@ local function SetupEnhanceUnitFrames()
         end
     end)
 
-    -- PlayerFrame vehicle art transitions
     hooksecurefunc("PlayerFrame_ToPlayerArt", function()
         if InCombatLockdown() then
             pendingPlayerStyle = true
@@ -610,7 +599,6 @@ local function SetupEnhanceUnitFrames()
         end
     end)
 
-    -- Target & Focus frame hooks
     hooksecurefunc("TargetFrame_Update", function(self)
         if not InCombatLockdown() then
             StyleTargetFrame(self)
@@ -638,29 +626,41 @@ local function SetupEnhanceUnitFrames()
     end)
     hooksecurefunc("TargetFrame_CheckClassification", UpdateClassification)
 
-    -- Safe FocusFrame resize hook
     if FocusFrame_SetSmallSize then
-        hooksecurefunc("FocusFrame_SetSmallSize", function()
-            if not InCombatLockdown() then
-                StyleTargetFrame(FocusFrame)
+        local inFocusHook = false
+        hooksecurefunc("FocusFrame_SetSmallSize", function(smallSize)
+            if inFocusHook then return end
+            if LeaPlusLC["EnhanceUnitFrames"] == "On" and smallSize then
+                if not InCombatLockdown() then
+                    inFocusHook = true
+                    FocusFrame_SetSmallSize(false, true)
+                    StyleTargetFrame(FocusFrame)
+                    inFocusHook = false
+                end
             end
         end)
     end
 
-    -- Event listener for reaction/faction changes outside target switching
     local eventWatcher = CreateFrame("Frame")
     eventWatcher:RegisterEvent("UNIT_FACTION")
-    eventWatcher:SetScript("OnEvent", function(_, _, unit)
-        if unit == "target" then
-            UpdateBarColor(TargetFrame.healthbar)
-        elseif unit == "focus" then
-            UpdateBarColor(FocusFrame.healthbar)
-        elseif unit == "player" or unit == "vehicle" then
+    eventWatcher:RegisterEvent("PLAYER_ALIVE")
+    eventWatcher:RegisterEvent("PLAYER_UNGHOST")
+    eventWatcher:RegisterEvent("PLAYER_DEAD")
+    eventWatcher:RegisterEvent("PLAYER_ENTERING_WORLD")
+    eventWatcher:SetScript("OnEvent", function(_, event, unit)
+        if event == "UNIT_FACTION" then
+            if unit == "target" then
+                UpdateBarColor(TargetFrame.healthbar)
+            elseif unit == "focus" then
+                UpdateBarColor(FocusFrame.healthbar)
+            elseif unit == "player" or unit == "vehicle" then
+                UpdateBarColor(PlayerFrameHealthBar)
+            end
+        elseif event == "PLAYER_ALIVE" or event == "PLAYER_UNGHOST" or event == "PLAYER_DEAD" or event == "PLAYER_ENTERING_WORLD" then
             UpdateBarColor(PlayerFrameHealthBar)
         end
     end)
 
-    -- Deferred combat-exit handler
     local combatWait = CreateFrame("Frame")
     combatWait:RegisterEvent("PLAYER_REGEN_ENABLED")
     combatWait:SetScript("OnEvent", function()
@@ -673,12 +673,17 @@ local function SetupEnhanceUnitFrames()
                 StylePlayerFrame()
             end
         end
+        if FocusFrame_SetSmallSize and FocusFrame.smallSize and not InCombatLockdown() then
+            FocusFrame_SetSmallSize(false, true)
+        end
         StyleTargetFrame(TargetFrame)
         StyleTargetFrame(FocusFrame)
     end)
 
-    -- Initial setup outside combat
     if not InCombatLockdown() then
+        if FocusFrame_SetSmallSize then
+            FocusFrame_SetSmallSize(false, true)
+        end
         StylePlayerFrame()
         StyleTargetFrame(TargetFrame)
         StyleTargetFrame(FocusFrame)
@@ -691,7 +696,6 @@ local function SetupEnhanceUnitFrames()
     end
 end
 
--- Manage frames (player + target)
 local function SetupUnitFrames()
     local SideFrames = LeaPlusLC:CreatePanel("Manage frames", "SideFrames")
     LeaPlusLC:MakeTx(SideFrames, "Scale", 16, -72)
@@ -867,7 +871,6 @@ local function SetupUnitFrames()
     ApplyUnitFramePositions()
     Module.ApplyUnitFramePositions = ApplyUnitFramePositions
 
-    -- Vehicle fix: Blizzard resets PlayerFrame position on enter/leave vehicle.
     if not LeaPlusLC.__leaPlayerFrameFixInstalled then
         LeaPlusLC.__leaPlayerFrameFixInstalled = true
 
@@ -922,7 +925,6 @@ local function SetupUnitFrames()
     end
 end
 
--- Class colored frames
 local function SetupClassColFrames()
     local ClassFrame = LeaPlusLC:CreatePanel("Class Colored Unit Frames", "ClassFrame")
     LeaPlusLC:MakeTx(ClassFrame, "Settings", 16, -72)
@@ -992,7 +994,6 @@ local function SetupClassColFrames()
     SetClassColFrames()
 end
 
--- Managed containers
 local function SetupManagedContainers()
     local masterBuff = (ConsolidatedBuffs and ConsolidatedBuffs:IsShown()) and ConsolidatedBuffs or BuffFrame
     if masterBuff then
@@ -1142,7 +1143,6 @@ local function SetupManagedContainers()
     end
 end
 
--- Cosmetics
 local function SetupCosmetics()
     if LeaPlusLC["NoGryphons"] == "On" and not LeaLockList["NoGryphons"] then
         if MainMenuBarLeftEndCap then
@@ -1184,7 +1184,6 @@ local function SetupCosmetics()
     end
 end
 
--- Lifecycle
 function Module:OnEnable()
     SetupUnitFrames()
     SetupEnhanceUnitFrames()
