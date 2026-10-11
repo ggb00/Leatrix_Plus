@@ -8,13 +8,11 @@ local L = Leatrix_Plus.L
 local Module = {}
 Leatrix_Plus:RegisterModule("Minimap", Module)
 
--- Minimap base setup
 local function SetupMinimapBase()
     MinimapCluster:EnableMouse(false)
     Minimap:Raise()
 end
 
--- Controls (movement + mousewheel zoom)
 local function SetupMinimapControls()
     Minimap:EnableMouseWheel(true)
     Minimap:SetScript("OnMouseWheel", function(self, delta)
@@ -79,7 +77,6 @@ local function SetupMinimapControls()
     end)
 end
 
--- Visibility suppressions
 local function SetupMinimapVisibility()
     if LeaPlusLC["HideMiniZoneText"] == "On" then
         if MinimapBorderTop then
@@ -196,22 +193,23 @@ local function SetupMinimapVisibility()
     poiFrame:SetScript("OnEvent", UpdatePOIArrows)
 end
 
--- Who pinged
 local function SetupWhoPinged()
     local pFrame = CreateFrame("Frame", nil, Minimap)
     pFrame:SetSize(100, 20)
+    pFrame:SetFrameStrata("TOOLTIP")
+    pFrame:SetFrameLevel(100)
     pFrame:SetBackdrop({
         bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
         edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
         edgeSize = 12,
         insets = { left = 3, right = 3, top = 3, bottom = 3 },
     })
-    pFrame:SetBackdropColor(0, 0, 0, 0.7)
+    pFrame:SetBackdropColor(0, 0, 0, 0.75)
     pFrame:SetBackdropBorderColor(0, 0, 0, 0)
     pFrame:Hide()
 
     pFrame.t = pFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    pFrame.t:SetAllPoints()
+    pFrame.t:SetPoint("CENTER", pFrame, "CENTER", 0, 0)
 
     pFrame.lastX = nil
     pFrame.lastY = nil
@@ -225,16 +223,15 @@ local function SetupWhoPinged()
             local mapH = Minimap:GetHeight() or 140
             local halfW = mapW / 2
             local halfH = mapH / 2
-            -- Convert 0.0..1.0 normalized ping coordinates to center-relative offsets
-            local xOff = (pFrame.lastX - 0.5) * mapW
-            local yOff = (pFrame.lastY - 0.5) * mapH
-            xOff = math.max(-halfW + 20, math.min(halfW - 20, xOff))
-            yOff = math.max(-halfH + 12, math.min(halfH - 12, yOff))
+            local x = pFrame.lastX * mapW
+            local y = pFrame.lastY * mapH
+            local xOff = math.max(-halfW + 20, math.min(halfW - 20, x))
+            local yOff = math.max(-halfH + 12, math.min(halfH - 12, y))
             pFrame:SetPoint("CENTER", Minimap, "CENTER", xOff, yOff)
         elseif mode == 2 then
-            pFrame:SetPoint("TOP", Minimap, "TOP", 0, -2)
+            pFrame:SetPoint("TOP", Minimap, "TOP", 0, -4)
         else
-            pFrame:SetPoint("BOTTOM", Minimap, "BOTTOM", 0, 2)
+            pFrame:SetPoint("BOTTOM", Minimap, "BOTTOM", 0, 6)
         end
     end
 
@@ -244,7 +241,7 @@ local function SetupWhoPinged()
     local lastTime = 0
 
     pFrame:SetScript("OnEvent", function(_, _, unit, pingX, pingY)
-        if not unit or UnitIsUnit(unit, "player") then return end
+        if not unit then return end
         local now = GetTime()
         if unit == lastUnit and (now - lastTime < 1.0) then return end
         lastUnit = unit
@@ -305,22 +302,18 @@ local function SetupWhoPinged()
     SetPingFunc()
 end
 
--- Minimap panel
 local function SetupMinimapPanel()
     local SideMinimap = LeaPlusLC:CreatePanel("Enhance Minimap", "SideMinimap")
     LeaPlusLC:MakeTx(SideMinimap, "Settings", 16, -72)
 
-    -- Left column, visibility toggles
     LeaPlusLC:MakeCB(SideMinimap, "HideMiniZoomBtns", "Hide Zoom Buttons", 16, -92, true, "Hides the zoom in and zoom out buttons.")
     LeaPlusLC:MakeCB(SideMinimap, "HideMiniZoneText", "Hide Zone Text Bar", 16, -112, true, "Hides the top zone text header bar.")
     LeaPlusLC:MakeCB(SideMinimap, "HideMiniMapButton", "Hide World Map Button", 16, -132, true, "Hides the world map globe icon.")
     LeaPlusLC:MakeCB(SideMinimap, "HideMiniTracking", "Hide Tracking Button", 16, -152, true, "Hides the tracking icon and opens the tracking menu by Right-Clicking the minimap.")
 
-    -- Show who pinged checkbox
     LeaPlusLC:MakeCB(SideMinimap, "ShowWhoPinged", "Show Who Pinged", 16, -192, false,
         "Displays the class-colored character name of group members who ping the minimap.")
 
-    -- Nested Ping Panel
     local PingPanel = LeaPlusLC:CreatePanel("Show Who Pinged", "PingPanel")
     LeaPlusLC:MakeTx(PingPanel, "Settings", 16, -72)
     local pingModeDrop = LeaPlusLC:CreateDropDown("ShowWhoPingedMode", "Ping Label Position", PingPanel, 146, "TOPLEFT", 16, -145,
@@ -353,7 +346,6 @@ local function SetupMinimapPanel()
         PingPanel:Show()
     end)
 
-    -- Config gear button for Show Who Pinged inside SideMinimap
     LeaPlusLC:CfgBtn("ShowWhoPingedBtn", LeaPlusCB["ShowWhoPinged"])
     if LeaPlusCB["ShowWhoPingedBtn"] then
         LeaPlusCB["ShowWhoPingedBtn"]:SetScript("OnClick", function()
@@ -362,12 +354,10 @@ local function SetupMinimapPanel()
         end)
     end
 
-    -- Right column
     LeaPlusLC:MakeCB(SideMinimap, "HideMiniCalendar", "Hide Calendar Button", 226, -92, true, "Hides the calendar icon and opens the calendar by Shift + Middle-Clicking the minimap.")
     LeaPlusLC:MakeCB(SideMinimap, "ClockMouseover", "Show Clock on Mouseover", 226, -112, false, "Keeps the minimap clock hidden until hovering over the minimap or clock.")
     LeaPlusLC:MakeCB(SideMinimap, "HideMiniPOIArrows", "Hide POI Arrows", 226, -132, false, "Hides edge quest and point-of-interest tracking arrows on the minimap.")
 
-    -- Third column, scale
     LeaPlusLC:MakeTx(SideMinimap, "Scale", 406, -72)
     LeaPlusLC:MakeSL(SideMinimap, "MinimapScale", "Scale of the minimap.", 0.5, 2.0, 0.05, 406, -92, "%.2f")
 
@@ -412,7 +402,6 @@ local function SetupMinimapPanel()
     end
 end
 
--- Lifecycle
 function Module:OnEnable()
     SetupMinimapPanel()
 
